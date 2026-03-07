@@ -89,9 +89,32 @@
   </head>
 
   <body class="bg-background-light font-display antialiased">
+
+    <div id="welcome-screen" class="bg-sage-bg min-h-screen flex flex-col items-center justify-center p-6 text-text-main selection:bg-pink-btn-hover/50">
+        <div class="w-32 h-32 mb-8 bg-white rounded-3xl shadow-soft flex items-center justify-center p-4">
+            <img src="https://cdn-icons-png.flaticon.com/512/4320/4320330.png" alt="Familia Logo" class="w-full h-full object-contain" />
+        </div>
+        <h1 class="text-4xl font-bold mb-2 text-center tracking-tight">Familia</h1>
+        <p class="text-lg text-sage-dark/80 text-center mb-12 max-w-[80%]">Your family's smart caretaker dashboard.</p>
+
+        <button id="install-btn" class="hidden w-full max-w-[300px] h-14 mb-4 bg-primary hover:bg-primary-dark active:scale-95 text-white rounded-2xl shadow-lg font-bold text-lg flex items-center justify-center gap-2 transition-all">
+            <span class="material-symbols-outlined icon-filled">download</span>
+            Install App
+        </button>
+
+        <div id="ios-instructions" class="hidden w-full max-w-[300px] mb-4 bg-white/60 border border-sage-dark/10 rounded-2xl p-4 text-center text-sm text-sage-dark shadow-sm">
+            <p class="font-bold mb-1">To install on iPhone/iPad:</p>
+            <p>Tap the <span class="material-symbols-outlined text-[16px] align-middle">ios_share</span> Share button below and select <strong>"Add to Home Screen"</strong>.</p>
+        </div>
+
+        <button id="continue-btn" class="w-full max-w-[300px] h-14 bg-white border-2 border-primary/20 hover:border-primary text-primary rounded-2xl font-bold text-lg active:scale-95 transition-all">
+            Continue to Login
+        </button>
+    </div>
+
     <div
       id="pin-screen"
-      class="bg-sage-bg min-h-screen flex flex-col justify-between overflow-hidden text-text-main selection:bg-pink-btn-hover/50"
+      class="hidden bg-sage-bg min-h-screen flex-col justify-between overflow-hidden text-text-main selection:bg-pink-btn-hover/50"
     >
       <header class="flex items-center justify-between p-6 pt-10">
         <button
@@ -479,11 +502,53 @@
     </div>
 
     <script>
+      // --- WELCOME SCREEN & INSTALL LOGIC ---
+      const welcomeScreen = document.getElementById("welcome-screen");
+      const continueBtn = document.getElementById("continue-btn");
+      const pinScreen = document.getElementById("pin-screen");
+      
+      const installBtn = document.getElementById("install-btn");
+      const iosInstructions = document.getElementById("ios-instructions");
+      let deferredPrompt;
+
+      // Detect if user is on iOS and not already installed
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+      if (isIOS && !isStandalone) {
+          iosInstructions.classList.remove('hidden');
+      }
+
+      // Catch the Android/Chrome install prompt
+      window.addEventListener('beforeinstallprompt', (e) => {
+          e.preventDefault();
+          deferredPrompt = e;
+          installBtn.classList.remove('hidden');
+      });
+
+      // Handle the Install Button Click
+      installBtn.addEventListener('click', async () => {
+          if (deferredPrompt) {
+              deferredPrompt.prompt();
+              const { outcome } = await deferredPrompt.userChoice;
+              console.log(`User response to the install prompt: ${outcome}`);
+              deferredPrompt = null;
+              installBtn.classList.add('hidden');
+          }
+      });
+
+      // Handle Continue Button Click
+      continueBtn.addEventListener("click", () => {
+          welcomeScreen.classList.add("hidden");
+          welcomeScreen.classList.remove("flex");
+          pinScreen.classList.remove("hidden");
+          pinScreen.classList.add("flex");
+      });
+
       // --- PIN SCREEN LOGIC ---
       let pinClicks = 0;
       const pinInputs = document.querySelectorAll(".pin-dot");
       const numpadBtns = document.querySelectorAll(".numpad-btn");
-      const pinScreen = document.getElementById("pin-screen");
       const dashboard = document.getElementById("main-dashboard");
 
       numpadBtns.forEach((btn) => {
@@ -494,7 +559,8 @@
           }
           if (pinClicks === 4) {
             setTimeout(() => {
-              pinScreen.style.display = "none";
+              pinScreen.classList.add("hidden");
+              pinScreen.classList.remove("flex");
               dashboard.classList.remove("hidden");
               dashboard.classList.add("flex");
             }, 400);
@@ -525,7 +591,7 @@
         }
       });
 
-      // --- NEW: TASK CHECKBOX LOGIC ---
+      // --- TASK CHECKBOX LOGIC ---
       const taskButton = document.getElementById("task-btn");
       const taskCard = document.getElementById("task-card");
 
@@ -540,7 +606,7 @@
         });
       }
 
-      // --- NEW: MOOD SELECTION LOGIC ---
+      // --- MOOD SELECTION LOGIC ---
       const moodButtons = document.querySelectorAll(".group.flex-1");
 
       moodButtons.forEach((btn) => {
@@ -569,7 +635,7 @@
           window.addEventListener('load', () => {
               navigator.serviceWorker.register('./sw.js')
                   .then(registration => {
-                      console.log('ServiceWorker successfully registered with scope: ', registration.scope);
+                      console.log('ServiceWorker successfully registered');
                   })
                   .catch(err => {
                       console.log('ServiceWorker registration failed: ', err);
