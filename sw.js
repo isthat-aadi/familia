@@ -1,27 +1,23 @@
-const CACHE_NAME = 'familia-cache-v1';
-const urlsToCache = [
-  './',
-  './index.html'
-];
+const CACHE_NAME = 'familia-cache-v2';
+const urlsToCache = ['./', './index.html', './app.js', './manifest.json'];
 
-// 1. Install the Service Worker and save the files to the phone
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    )
   );
 });
 
-// 2. Intercept network requests and serve the saved files if offline
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Return the cached version if we have it, otherwise fetch from the internet
-        return response || fetch(event.request);
-      })
+    caches.match(event.request).then(response => response || fetch(event.request))
   );
 });
