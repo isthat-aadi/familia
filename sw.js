@@ -1,4 +1,4 @@
-const CACHE_NAME = 'familia-cache-v2';
+const CACHE_NAME = 'familia-cache-v3';
 const urlsToCache = ['./', './index.html', './app.js', './manifest.json'];
 
 self.addEventListener('install', event => {
