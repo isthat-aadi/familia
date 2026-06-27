@@ -1,11 +1,6 @@
-// ============================================
-// FAMILIA APP - app.js
-// ============================================
-
-// --- FIREBASE CONFIG ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, addDoc, collection, query, where, orderBy, onSnapshot, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, addDoc, collection, query, where, onSnapshot, updateDoc, deleteDoc, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDjJpDGmYUz01Fs7Ld2aegsH1eyq12T0JA",
@@ -23,34 +18,22 @@ const db = getFirestore(app);
 // ============================================
 // SCREEN MANAGER
 // ============================================
-const screens = {
-  auth: document.getElementById('auth-screen'),
-  pin: document.getElementById('pin-screen'),
-  dashboard: document.getElementById('dashboard-screen'),
-  chat: document.getElementById('chat-screen'),
-  tasks: document.getElementById('tasks-screen'),
-  meds: document.getElementById('meds-screen'),
-};
-
-function showScreen(name) {
-  Object.values(screens).forEach(s => {
+function showScreen(id) {
+  document.querySelectorAll('[id$="-screen"]').forEach(s => {
     s.classList.add('hidden');
     s.classList.remove('flex');
   });
-  screens[name].classList.remove('hidden');
-  screens[name].classList.add('flex');
+  const el = document.getElementById(id);
+  if (el) { el.classList.remove('hidden'); el.classList.add('flex'); }
 }
 
 // ============================================
-// SOS SIREN — Web Audio API (ignores volume)
+// SOS SIREN
 // ============================================
-let sirenInterval = null;
-let sirenCtx = null;
+let sirenInterval = null, sirenCtx = null, sosActive = false;
 
 function startSiren() {
-  // AudioContext plays through system audio — bypasses media volume
   sirenCtx = new (window.AudioContext || window.webkitAudioContext)();
-
   let toggle = false;
   sirenInterval = setInterval(() => {
     const osc = sirenCtx.createOscillator();
@@ -71,31 +54,21 @@ function startSiren() {
 function stopSiren() {
   if (sirenInterval) clearInterval(sirenInterval);
   if (sirenCtx) sirenCtx.close();
-  sirenCtx = null;
-  sirenInterval = null;
+  sirenCtx = null; sirenInterval = null;
 }
 
-// ============================================
-// SOS BUTTON
-// ============================================
-let sosActive = false;
-
 document.getElementById('sos-btn').addEventListener('click', () => {
+  const btn = document.getElementById('sos-btn');
   if (!sosActive) {
     sosActive = true;
     startSiren();
-    document.getElementById('sos-btn').classList.add('animate-pulse');
-    document.getElementById('sos-btn').innerHTML = `
-      <span class="material-symbols-outlined text-3xl icon-filled">emergency</span>
-      <span class="text-xl font-bold tracking-wide">TAP TO STOP SOS</span>
-    `;
-    // Log SOS to Firestore
-    const user = auth.currentUser;
-    if (user) {
+    btn.classList.add('animate-pulse');
+    btn.innerHTML = `<span class="material-symbols-outlined text-3xl icon-filled">emergency</span><span class="text-xl font-bold tracking-wide">TAP TO STOP SOS</span>`;
+    if (auth.currentUser) {
       navigator.geolocation.getCurrentPosition(pos => {
         addDoc(collection(db, 'families', getFamilyId(), 'sos_alerts'), {
-          triggeredBy: user.displayName || user.email,
-          uid: user.uid,
+          triggeredBy: auth.currentUser.displayName || auth.currentUser.email,
+          uid: auth.currentUser.uid,
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           timestamp: serverTimestamp()
@@ -105,20 +78,21 @@ document.getElementById('sos-btn').addEventListener('click', () => {
   } else {
     sosActive = false;
     stopSiren();
-    document.getElementById('sos-btn').classList.remove('animate-pulse');
-    document.getElementById('sos-btn').innerHTML = `
-      <span class="material-symbols-outlined text-3xl icon-filled">emergency</span>
-      <span class="text-xl font-bold tracking-wide">SOS EMERGENCY</span>
-    `;
+    btn.classList.remove('animate-pulse');
+    btn.innerHTML = `<span class="material-symbols-outlined text-3xl icon-filled">emergency</span><span class="text-xl font-bold tracking-wide">SOS EMERGENCY</span>`;
   }
 });
 
 // ============================================
-// AUTH — LOGIN / SIGNUP
+// FAMILY ID
 // ============================================
-let currentUser = null;
+function getFamilyId() {
+  return localStorage.getItem('familyCode') || 'default';
+}
 
-// Toggle between login and signup
+// ============================================
+// AUTH
+// ============================================
 document.getElementById('toggle-auth-mode').addEventListener('click', () => {
   const isLogin = document.getElementById('auth-title').textContent === 'Welcome Back';
   document.getElementById('auth-title').textContent = isLogin ? 'Join Familia' : 'Welcome Back';
@@ -138,24 +112,21 @@ document.getElementById('auth-submit-btn').addEventListener('click', async () =>
   try {
     if (isSignup) {
       const name = document.getElementById('auth-name').value.trim();
-      const familyCode = document.getElementById('auth-family-code').value.trim();
+      const familyCode = document.getElementById('auth-family-code').value.trim().toLowerCase().replace(/\s/g, '');
       if (!name || !familyCode) { errEl.textContent = 'Name aur Family Code dono zaroori hain!'; return; }
-
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(cred.user, { displayName: name });
-
-      // Save user to Firestore under family
       await setDoc(doc(db, 'families', familyCode, 'members', cred.user.uid), {
         name, email, uid: cred.user.uid, role: 'caretaker', joinedAt: serverTimestamp()
       });
-      // Save family reference on user
-      await setDoc(doc(db, 'users', cred.user.uid), {
-        name, email, familyCode, uid: cred.user.uid
-      });
-
+      await setDoc(doc(db, 'users', cred.user.uid), { name, email, familyCode, uid: cred.user.uid });
       localStorage.setItem('familyCode', familyCode);
     } else {
-      await signInWithEmailAndPassword(auth, email, password);
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      if (!localStorage.getItem('familyCode')) {
+        const userDoc = await getDoc(doc(db, 'users', cred.user.uid));
+        if (userDoc.exists()) localStorage.setItem('familyCode', userDoc.data().familyCode);
+      }
     }
   } catch (e) {
     errEl.textContent = e.message.replace('Firebase: ', '').replace(/\(auth.*\)\.?/, '');
@@ -163,67 +134,52 @@ document.getElementById('auth-submit-btn').addEventListener('click', async () =>
 });
 
 // ============================================
-// FAMILY ID HELPER
-// ============================================
-function getFamilyId() {
-  return localStorage.getItem('familyCode') || 'default';
-}
-
-// ============================================
-// AUTH STATE LISTENER
+// AUTH STATE
 // ============================================
 onAuthStateChanged(auth, async (user) => {
   if (user) {
-    currentUser = user;
-    // Load familyCode from Firestore if not in localStorage
     if (!localStorage.getItem('familyCode')) {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        localStorage.setItem('familyCode', userDoc.data().familyCode);
-      }
+      if (userDoc.exists()) localStorage.setItem('familyCode', userDoc.data().familyCode);
     }
-    showScreen('pin');
+    showScreen('pin-screen');
     setupPinScreen();
   } else {
-    currentUser = null;
-    showScreen('auth');
+    showScreen('auth-screen');
   }
 });
 
 // ============================================
-// PIN SCREEN
+// PIN
 // ============================================
 function setupPinScreen() {
   let pinClicks = 0;
   const pinInputs = document.querySelectorAll('.pin-dot');
-  const numpadBtns = document.querySelectorAll('.numpad-btn');
-
-  // Reset
   pinInputs.forEach(i => i.value = '');
-  pinClicks = 0;
 
-  numpadBtns.forEach(btn => {
+  document.querySelectorAll('.numpad-btn').forEach(btn => {
     btn.onclick = () => {
-      if (pinClicks < 4) {
-        pinInputs[pinClicks].value = '•';
-        pinClicks++;
-      }
+      if (pinClicks < 4) { pinInputs[pinClicks].value = '•'; pinClicks++; }
       if (pinClicks === 4) {
-        setTimeout(() => {
-          showScreen('dashboard');
-          loadDashboard();
-        }, 400);
+        setTimeout(() => { showScreen('dashboard-screen'); loadDashboard(); }, 400);
       }
     };
   });
 
-  document.querySelector('.backspace-btn').onclick = () => {
-    if (pinClicks > 0) {
-      pinClicks--;
-      pinInputs[pinClicks].value = '';
-    }
-  };
+  const backBtn = document.querySelector('.backspace-btn');
+  if (backBtn) backBtn.onclick = () => { if (pinClicks > 0) { pinClicks--; pinInputs[pinClicks].value = ''; } };
 }
+
+// ============================================
+// LOGOUT
+// ============================================
+async function handleLogout() {
+  stopSiren();
+  localStorage.removeItem('familyCode');
+  await signOut(auth);
+}
+document.getElementById('logout-btn').addEventListener('click', handleLogout);
+document.getElementById('logout-dash-btn').addEventListener('click', handleLogout);
 
 // ============================================
 // DASHBOARD
@@ -231,44 +187,40 @@ function setupPinScreen() {
 function loadDashboard() {
   const user = auth.currentUser;
   if (!user) return;
-
-  document.getElementById('dash-username').textContent = `Hi, ${user.displayName || 'Friend'}`;
+  const name = user.displayName || 'Friend';
+  document.getElementById('dash-username').textContent = `Hi, ${name}`;
+  document.getElementById('dash-avatar').textContent = name[0].toUpperCase();
   loadTodayMood();
-  loadTasks();
+  loadTasks('tasks-list');
   loadFamilyMembers();
 }
 
 // ============================================
-// MOOD TRACKING
+// MOOD
 // ============================================
 function loadTodayMood() {
-  const familyId = getFamilyId();
   const today = new Date().toISOString().split('T')[0];
-
-  onSnapshot(doc(db, 'families', familyId, 'moods', today), (snap) => {
-    if (snap.exists()) {
-      const mood = snap.data().mood;
-      document.querySelectorAll('.mood-btn').forEach(btn => {
-        const isActive = btn.dataset.mood === mood;
-        const circle = btn.querySelector('.mood-circle');
-        circle.className = isActive
-          ? 'mood-circle w-12 h-12 rounded-full bg-accent-pink border-2 border-accent-pink-dark flex items-center justify-center text-2xl scale-110 shadow-sm'
-          : 'mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100';
-      });
-      document.getElementById('mood-time').textContent = `Updated ${snap.data().time}`;
-    }
+  onSnapshot(doc(db, 'families', getFamilyId(), 'moods', today), (snap) => {
+    if (!snap.exists()) return;
+    const mood = snap.data().mood;
+    document.querySelectorAll('.mood-btn').forEach(btn => {
+      const circle = btn.querySelector('.mood-circle');
+      if (!circle) return;
+      circle.className = btn.dataset.mood === mood
+        ? 'mood-circle w-12 h-12 rounded-full bg-accent-pink border-2 border-accent-pink-dark flex items-center justify-center text-2xl scale-110 shadow-sm'
+        : 'mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100';
+    });
+    const timeEl = document.getElementById('mood-time');
+    if (timeEl) timeEl.textContent = `Updated ${snap.data().time}`;
   });
 }
 
 document.querySelectorAll('.mood-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
-    const mood = btn.dataset.mood;
-    const familyId = getFamilyId();
     const today = new Date().toISOString().split('T')[0];
     const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-
-    await setDoc(doc(db, 'families', familyId, 'moods', today), {
-      mood, time, updatedBy: auth.currentUser?.displayName || 'Someone', updatedAt: serverTimestamp()
+    await setDoc(doc(db, 'families', getFamilyId(), 'moods', today), {
+      mood: btn.dataset.mood, time, updatedBy: auth.currentUser?.displayName, updatedAt: serverTimestamp()
     });
   });
 });
@@ -276,124 +228,116 @@ document.querySelectorAll('.mood-btn').forEach(btn => {
 // ============================================
 // TASKS
 // ============================================
-function loadTasks() {
-  const familyId = getFamilyId();
+let tasksUnsub = null;
+
+function loadTasks(containerId) {
+  if (tasksUnsub) tasksUnsub();
   const today = new Date().toISOString().split('T')[0];
 
-  onSnapshot(query(
-    collection(db, 'families', familyId, 'tasks'),
-    where('date', '==', today),
-    orderBy('time')
-  ), (snap) => {
-    const container = document.getElementById('tasks-list');
-    container.innerHTML = '';
+  tasksUnsub = onSnapshot(
+    query(collection(db, 'families', getFamilyId(), 'tasks'), where('date', '==', today)),
+    (snap) => {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = '';
 
-    if (snap.empty) {
-      container.innerHTML = `<p class="text-center text-slate-400 py-8">Aaj ke liye koi task nahi. Add karo! 🎉</p>`;
-      return;
-    }
+      if (snap.empty) {
+        container.innerHTML = `<p class="text-center text-slate-400 py-8">Aaj koi task nahi. Add karo! 🎉</p>`;
+        return;
+      }
 
-    snap.forEach(docSnap => {
-      const task = docSnap.data();
-      const id = docSnap.id;
-      const done = task.done;
+      const docs = [];
+      snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => a.time > b.time ? 1 : -1);
 
-      container.innerHTML += `
-        <div class="${done ? 'opacity-60 bg-white/60' : 'bg-surface-pink'} rounded-xl p-5 shadow-sm border ${done ? 'border-slate-200' : 'border-l-4 border-primary'} mb-4">
-          <div class="flex items-start justify-between">
-            <div class="flex gap-4">
-              <div class="w-12 h-12 rounded-full ${done ? 'bg-slate-100 text-slate-400' : 'bg-white text-primary'} flex items-center justify-center shrink-0 shadow-sm">
-                <span class="material-symbols-outlined icon-filled">${task.icon || 'task_alt'}</span>
+      docs.forEach(task => {
+        container.innerHTML += `
+          <div class="${task.done ? 'opacity-60 bg-white/60 border-slate-200' : 'bg-surface-pink border-l-4 border-primary'} rounded-xl p-4 shadow-sm border mb-3">
+            <div class="flex items-center justify-between">
+              <div class="flex gap-3 items-center">
+                <div class="w-10 h-10 rounded-full ${task.done ? 'bg-slate-100 text-slate-400' : 'bg-white text-primary'} flex items-center justify-center shrink-0">
+                  <span class="material-symbols-outlined icon-filled">task_alt</span>
+                </div>
+                <div>
+                  <h4 class="font-bold ${task.done ? 'text-slate-400 line-through' : 'text-slate-800'}">${task.title}</h4>
+                  <p class="text-xs text-slate-500">${task.time}${task.note ? ' • ' + task.note : ''}</p>
+                </div>
               </div>
-              <div>
-                <h4 class="text-lg font-bold ${done ? 'text-slate-500 line-through' : 'text-slate-900'}">${task.title}</h4>
-                <p class="text-sm text-slate-500">${task.time} • ${task.note || ''}</p>
+              <div class="flex gap-2">
+                ${!task.done
+                  ? `<button onclick="markTaskDone('${task.id}')" class="w-8 h-8 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white flex items-center justify-center transition-colors"><span class="material-symbols-outlined text-sm">check</span></button>`
+                  : `<div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center"><span class="material-symbols-outlined text-sm">check</span></div>`
+                }
+                <button onclick="deleteTask('${task.id}')" class="w-8 h-8 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center"><span class="material-symbols-outlined text-sm">delete</span></button>
               </div>
-            </div>
-            <div class="flex gap-2">
-              ${done
-                ? `<div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center border border-green-200"><span class="material-symbols-outlined text-sm">check</span></div>`
-                : `<button onclick="markTaskDone('${id}')" class="w-8 h-8 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white flex items-center justify-center transition-colors"><span class="material-symbols-outlined text-sm">check</span></button>`
-              }
-              <button onclick="deleteTask('${id}')" class="w-8 h-8 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center transition-colors"><span class="material-symbols-outlined text-sm">delete</span></button>
             </div>
           </div>
-        </div>
-      `;
-    });
-  });
+        `;
+      });
+    }
+  );
 }
 
 window.markTaskDone = async (id) => {
-  const familyId = getFamilyId();
-  await updateDoc(doc(db, 'families', familyId, 'tasks', id), { done: true, doneAt: serverTimestamp() });
+  await updateDoc(doc(db, 'families', getFamilyId(), 'tasks', id), { done: true, doneAt: serverTimestamp() });
 };
-
 window.deleteTask = async (id) => {
-  const familyId = getFamilyId();
-  await deleteDoc(doc(db, 'families', familyId, 'tasks', id));
+  await deleteDoc(doc(db, 'families', getFamilyId(), 'tasks', id));
 };
 
-// Add Task
 document.getElementById('add-task-btn').addEventListener('click', async () => {
   const title = document.getElementById('task-title').value.trim();
   const time = document.getElementById('task-time').value;
   const note = document.getElementById('task-note').value.trim();
-
   if (!title || !time) { alert('Task naam aur time dono chahiye!'); return; }
-
-  const familyId = getFamilyId();
   const today = new Date().toISOString().split('T')[0];
-
-  await addDoc(collection(db, 'families', familyId, 'tasks'), {
-    title, time, note, done: false, icon: 'task_alt',
-    date: today, createdBy: auth.currentUser?.displayName,
-    createdAt: serverTimestamp()
+  await addDoc(collection(db, 'families', getFamilyId(), 'tasks'), {
+    title, time, note, done: false, date: today,
+    createdBy: auth.currentUser?.displayName, createdAt: serverTimestamp()
   });
-
   document.getElementById('task-title').value = '';
   document.getElementById('task-time').value = '';
   document.getElementById('task-note').value = '';
-  document.getElementById('add-task-modal').classList.add('hidden');
+  closeModal('add-task-modal');
 });
 
 // ============================================
 // MEDICATIONS
 // ============================================
 function loadMeds() {
-  const familyId = getFamilyId();
-
-  onSnapshot(collection(db, 'families', familyId, 'medications'), (snap) => {
+  onSnapshot(collection(db, 'families', getFamilyId(), 'medications'), (snap) => {
     const container = document.getElementById('meds-list');
+    if (!container) return;
     container.innerHTML = '';
-
     if (snap.empty) {
       container.innerHTML = `<p class="text-center text-slate-400 py-8">Koi medication nahi. Add karo!</p>`;
       return;
     }
-
     snap.forEach(docSnap => {
       const med = docSnap.data();
       const id = docSnap.id;
+      const lowStock = med.stock <= 5;
       container.innerHTML += `
-        <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 mb-3 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-              <span class="material-symbols-outlined icon-filled">pill</span>
+        <div class="bg-white rounded-xl p-4 shadow-sm border ${lowStock ? 'border-red-200' : 'border-slate-100'} mb-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <span class="material-symbols-outlined icon-filled">pill</span>
+              </div>
+              <div>
+                <h4 class="font-bold text-slate-800">${med.name}</h4>
+                <p class="text-sm text-slate-500">${med.dosage} • ${med.frequency}</p>
+                <p class="text-xs ${lowStock ? 'text-red-500 font-semibold' : 'text-slate-400'}">${lowStock ? '⚠️ ' : ''}${med.stock} pills left</p>
+              </div>
             </div>
-            <div>
-              <h4 class="font-bold text-slate-800">${med.name}</h4>
-              <p class="text-sm text-slate-500">${med.dosage} • ${med.frequency}</p>
-              <p class="text-xs text-slate-400">Stock: ${med.stock} pills left</p>
+            <div class="flex gap-2">
+              <button onclick="decrementMed('${id}', ${med.stock})" class="w-8 h-8 rounded-full bg-orange-50 text-orange-500 hover:bg-orange-100 flex items-center justify-center">
+                <span class="material-symbols-outlined text-sm">remove</span>
+              </button>
+              <button onclick="deleteMed('${id}')" class="w-8 h-8 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center">
+                <span class="material-symbols-outlined text-sm">delete</span>
+              </button>
             </div>
-          </div>
-          <div class="flex gap-2">
-            <button onclick="decrementMed('${id}', ${med.stock})" class="w-8 h-8 rounded-full bg-orange-50 text-orange-500 hover:bg-orange-100 flex items-center justify-center">
-              <span class="material-symbols-outlined text-sm">remove</span>
-            </button>
-            <button onclick="deleteMed('${id}')" class="w-8 h-8 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center">
-              <span class="material-symbols-outlined text-sm">delete</span>
-            </button>
           </div>
         </div>
       `;
@@ -401,15 +345,12 @@ function loadMeds() {
   });
 }
 
-window.decrementMed = async (id, currentStock) => {
-  if (currentStock <= 0) { alert('Stock khatam! Naya order karo.'); return; }
-  const familyId = getFamilyId();
-  await updateDoc(doc(db, 'families', familyId, 'medications', id), { stock: currentStock - 1 });
+window.decrementMed = async (id, stock) => {
+  if (stock <= 0) { alert('Stock khatam! Refill karo.'); return; }
+  await updateDoc(doc(db, 'families', getFamilyId(), 'medications', id), { stock: stock - 1 });
 };
-
 window.deleteMed = async (id) => {
-  const familyId = getFamilyId();
-  await deleteDoc(doc(db, 'families', familyId, 'medications', id));
+  if (confirm('Delete karo?')) await deleteDoc(doc(db, 'families', getFamilyId(), 'medications', id));
 };
 
 document.getElementById('add-med-btn').addEventListener('click', async () => {
@@ -417,101 +358,82 @@ document.getElementById('add-med-btn').addEventListener('click', async () => {
   const dosage = document.getElementById('med-dosage').value.trim();
   const frequency = document.getElementById('med-frequency').value;
   const stock = parseInt(document.getElementById('med-stock').value);
-
-  if (!name || !dosage || !stock) { alert('Saari details bharo!'); return; }
-
-  const familyId = getFamilyId();
-  await addDoc(collection(db, 'families', familyId, 'medications'), {
+  if (!name || !dosage || isNaN(stock)) { alert('Saari details bharo!'); return; }
+  await addDoc(collection(db, 'families', getFamilyId(), 'medications'), {
     name, dosage, frequency, stock, addedBy: auth.currentUser?.displayName, addedAt: serverTimestamp()
   });
-
   document.getElementById('med-name').value = '';
   document.getElementById('med-dosage').value = '';
   document.getElementById('med-stock').value = '';
-  document.getElementById('add-med-modal').classList.add('hidden');
+  closeModal('add-med-modal');
 });
 
 // ============================================
-// FAMILY CHAT — Realtime
+// CHAT
 // ============================================
+let chatUnsub = null;
+
 function loadChat() {
-  const familyId = getFamilyId();
-
-  onSnapshot(query(
-    collection(db, 'families', familyId, 'messages'),
-    orderBy('sentAt')
-  ), (snap) => {
-    const container = document.getElementById('chat-messages');
-    container.innerHTML = '';
-
-    snap.forEach(docSnap => {
-      const msg = docSnap.data();
-      const isMe = msg.uid === auth.currentUser?.uid;
-
-      container.innerHTML += `
-        <div class="flex ${isMe ? 'justify-end' : 'justify-start'} mb-3">
-          <div class="max-w-[75%]">
-            ${!isMe ? `<p class="text-xs text-slate-500 mb-1 ml-1">${msg.senderName}</p>` : ''}
-            <div class="${isMe ? 'bg-primary text-white' : 'bg-white text-slate-800'} rounded-2xl ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'} px-4 py-3 shadow-sm">
-              <p class="text-sm">${msg.text}</p>
+  if (chatUnsub) chatUnsub();
+  chatUnsub = onSnapshot(
+    query(collection(db, 'families', getFamilyId(), 'messages'), orderBy('sentAt')),
+    (snap) => {
+      const container = document.getElementById('chat-messages');
+      if (!container) return;
+      container.innerHTML = '';
+      snap.forEach(docSnap => {
+        const msg = docSnap.data();
+        const isMe = msg.uid === auth.currentUser?.uid;
+        const time = msg.sentAt?.toDate ? msg.sentAt.toDate().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+        container.innerHTML += `
+          <div class="flex ${isMe ? 'justify-end' : 'justify-start'} mb-3">
+            <div class="max-w-[75%]">
+              ${!isMe ? `<p class="text-xs text-slate-500 mb-1 ml-1">${msg.senderName}</p>` : ''}
+              <div class="${isMe ? 'bg-primary text-white' : 'bg-white text-slate-800'} rounded-2xl ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'} px-4 py-3 shadow-sm">
+                <p class="text-sm">${msg.text}</p>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1 ${isMe ? 'text-right' : 'text-left'}">${time}</p>
             </div>
-            <p class="text-[10px] text-slate-400 mt-1 ${isMe ? 'text-right' : 'text-left'}">${msg.sentAt?.toDate ? msg.sentAt.toDate().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}) : 'now'}</p>
           </div>
-        </div>
-      `;
-    });
-    container.scrollTop = container.scrollHeight;
-  });
+        `;
+      });
+      container.scrollTop = container.scrollHeight;
+    }
+  );
 }
-
-document.getElementById('send-msg-btn').addEventListener('click', sendMessage);
-document.getElementById('chat-input').addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') sendMessage();
-});
 
 async function sendMessage() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
-  if (!text) return;
-
-  const familyId = getFamilyId();
-  const user = auth.currentUser;
-
-  await addDoc(collection(db, 'families', familyId, 'messages'), {
-    text, uid: user.uid,
-    senderName: user.displayName || user.email,
+  if (!text || !auth.currentUser) return;
+  await addDoc(collection(db, 'families', getFamilyId(), 'messages'), {
+    text, uid: auth.currentUser.uid,
+    senderName: auth.currentUser.displayName || auth.currentUser.email,
     sentAt: serverTimestamp()
   });
-
   input.value = '';
 }
+
+document.getElementById('send-msg-btn').addEventListener('click', sendMessage);
+document.getElementById('chat-input').addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
 
 // ============================================
 // FAMILY MEMBERS
 // ============================================
 function loadFamilyMembers() {
-  const familyId = getFamilyId();
-
-  onSnapshot(collection(db, 'families', familyId, 'members'), (snap) => {
+  const colors = ['bg-primary', 'bg-pink-400', 'bg-purple-400', 'bg-orange-400', 'bg-teal-400'];
+  let i = 0;
+  onSnapshot(collection(db, 'families', getFamilyId(), 'members'), (snap) => {
     const container = document.getElementById('family-circle');
+    if (!container) return;
     container.innerHTML = '';
-
     snap.forEach(docSnap => {
       const member = docSnap.data();
       const initials = member.name.split(' ').map(n => n[0]).join('').toUpperCase();
-      container.innerHTML += `
-        <div class="w-12 h-12 rounded-full border-2 border-white bg-primary flex items-center justify-center text-white font-bold text-sm relative" title="${member.name}">
-          ${initials}
-        </div>
-      `;
+      container.innerHTML += `<div class="w-12 h-12 rounded-full border-2 border-white ${colors[i % colors.length]} flex items-center justify-center text-white font-bold text-sm" title="${member.name}">${initials}</div>`;
+      i++;
     });
-
-    // Add button
-    container.innerHTML += `
-      <button class="w-12 h-12 rounded-full border-2 border-dashed border-primary text-primary bg-primary-light flex items-center justify-center hover:bg-primary/20 transition-colors">
-        <span class="material-symbols-outlined">add</span>
-      </button>
-    `;
+    container.innerHTML += `<button class="w-12 h-12 rounded-full border-2 border-dashed border-primary text-primary bg-primary-light flex items-center justify-center hover:bg-primary/20 transition-colors ml-1"><span class="material-symbols-outlined">add</span></button>`;
   });
 }
 
@@ -521,52 +443,34 @@ function loadFamilyMembers() {
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const target = btn.dataset.screen;
+    if (!target) return;
     showScreen(target);
-    if (target === 'dashboard') loadDashboard();
-    if (target === 'chat') loadChat();
-    if (target === 'meds') loadMeds();
-
-    // Update active nav
-    document.querySelectorAll('.nav-btn').forEach(b => {
-      b.classList.remove('text-primary');
-      b.classList.add('text-slate-400');
-    });
-    btn.classList.add('text-primary');
-    btn.classList.remove('text-slate-400');
+    if (target === 'dashboard-screen') loadDashboard();
+    if (target === 'chat-screen') loadChat();
+    if (target === 'meds-screen') loadMeds();
+    if (target === 'tasks-screen') loadTasks('tasks-list-full');
   });
-});
-
-// ============================================
-// LOGOUT
-// ============================================
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  stopSiren();
-  localStorage.removeItem('familyCode');
-  await signOut(auth);
 });
 
 // ============================================
 // MODALS
 // ============================================
-document.getElementById('open-add-task').addEventListener('click', () => {
-  document.getElementById('add-task-modal').classList.remove('hidden');
-});
-document.getElementById('close-task-modal').addEventListener('click', () => {
-  document.getElementById('add-task-modal').classList.add('hidden');
-});
+function openModal(id) { document.getElementById(id)?.classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id)?.classList.add('hidden'); }
 
-document.getElementById('open-add-med').addEventListener('click', () => {
-  document.getElementById('add-med-modal').classList.remove('hidden');
-});
-document.getElementById('close-med-modal').addEventListener('click', () => {
-  document.getElementById('add-med-modal').classList.add('hidden');
+document.getElementById('open-add-task').addEventListener('click', () => openModal('add-task-modal'));
+document.getElementById('close-task-modal').addEventListener('click', () => closeModal('add-task-modal'));
+document.getElementById('open-add-task-2')?.addEventListener('click', () => openModal('add-task-modal'));
+document.getElementById('open-add-med').addEventListener('click', () => openModal('add-med-modal'));
+document.getElementById('close-med-modal').addEventListener('click', () => closeModal('add-med-modal'));
+
+['add-task-modal', 'add-med-modal'].forEach(id => {
+  document.getElementById(id)?.addEventListener('click', e => { if (e.target.id === id) closeModal(id); });
 });
 
 // ============================================
-// PWA SERVICE WORKER
+// PWA
 // ============================================
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js');
-  });
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
 }
