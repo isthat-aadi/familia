@@ -24,14 +24,12 @@ const db = getFirestore(app);
 // SCREEN MANAGER
 // ============================================
 const screens = {
-  welcome: document.getElementById('welcome-screen'),
   auth: document.getElementById('auth-screen'),
   pin: document.getElementById('pin-screen'),
   dashboard: document.getElementById('dashboard-screen'),
   chat: document.getElementById('chat-screen'),
   tasks: document.getElementById('tasks-screen'),
   meds: document.getElementById('meds-screen'),
-  profile: document.getElementById('profile-screen'),
 };
 
 function showScreen(name) {
