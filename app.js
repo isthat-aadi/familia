@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, addDoc, collection, query, where, onSnapshot, updateDoc, deleteDoc, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -16,6 +16,18 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // ============================================
+// SPLASH
+// ============================================
+function hideSplash() {
+  const splash = document.getElementById('splash-screen');
+  if (!splash) return;
+  splash.classList.add('fade-out');
+  setTimeout(() => splash.remove(), 500);
+}
+// Failsafe — max 3s even if auth is slow
+setTimeout(hideSplash, 3000);
+
+// ============================================
 // SCREEN MANAGER
 // ============================================
 function showScreen(id) {
@@ -28,27 +40,57 @@ function showScreen(id) {
 }
 
 // ============================================
+// FAMILY ID
+// ============================================
+function getFamilyId() {
+  return localStorage.getItem('familyCode') || 'default';
+}
+
+// ============================================
+// PIN — Firestore per user, default 1234
+// ============================================
+const DEFAULT_PIN = '1234';
+
+async function getStoredPin() {
+  const user = auth.currentUser;
+  if (!user) return DEFAULT_PIN;
+  try {
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    if (snap.exists() && snap.data().pin) return snap.data().pin;
+  } catch (e) {}
+  return DEFAULT_PIN;
+}
+
+async function savePin(newPin) {
+  const user = auth.currentUser;
+  if (!user) return;
+  await updateDoc(doc(db, 'users', user.uid), { pin: newPin });
+}
+
+// ============================================
 // SOS SIREN
 // ============================================
 let sirenInterval = null, sirenCtx = null, sosActive = false;
 
 function startSiren() {
   sirenCtx = new (window.AudioContext || window.webkitAudioContext)();
-  let toggle = false;
-  sirenInterval = setInterval(() => {
-    const osc = sirenCtx.createOscillator();
-    const gain = sirenCtx.createGain();
-    osc.connect(gain);
-    gain.connect(sirenCtx.destination);
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(toggle ? 880 : 440, sirenCtx.currentTime);
-    osc.frequency.linearRampToValueAtTime(toggle ? 440 : 880, sirenCtx.currentTime + 0.4);
-    gain.gain.setValueAtTime(1, sirenCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, sirenCtx.currentTime + 0.45);
-    osc.start(sirenCtx.currentTime);
-    osc.stop(sirenCtx.currentTime + 0.45);
-    toggle = !toggle;
-  }, 450);
+  sirenCtx.resume().then(() => {
+    let toggle = false;
+    sirenInterval = setInterval(() => {
+      const osc = sirenCtx.createOscillator();
+      const gain = sirenCtx.createGain();
+      osc.connect(gain);
+      gain.connect(sirenCtx.destination);
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(toggle ? 880 : 440, sirenCtx.currentTime);
+      osc.frequency.linearRampToValueAtTime(toggle ? 440 : 880, sirenCtx.currentTime + 0.4);
+      gain.gain.setValueAtTime(1, sirenCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, sirenCtx.currentTime + 0.45);
+      osc.start(sirenCtx.currentTime);
+      osc.stop(sirenCtx.currentTime + 0.45);
+      toggle = !toggle;
+    }, 450);
+  });
 }
 
 function stopSiren() {
@@ -75,6 +117,7 @@ document.getElementById('sos-btn').addEventListener('click', () => {
         });
       });
     }
+    setTimeout(() => { window.location.href = 'tel:112'; }, 800);
   } else {
     sosActive = false;
     stopSiren();
@@ -84,14 +127,7 @@ document.getElementById('sos-btn').addEventListener('click', () => {
 });
 
 // ============================================
-// FAMILY ID
-// ============================================
-function getFamilyId() {
-  return localStorage.getItem('familyCode') || 'default';
-}
-
-// ============================================
-// AUTH
+// AUTH TOGGLE
 // ============================================
 document.getElementById('toggle-auth-mode').addEventListener('click', () => {
   const isLogin = document.getElementById('auth-title').textContent === 'Welcome Back';
@@ -100,34 +136,110 @@ document.getElementById('toggle-auth-mode').addEventListener('click', () => {
   document.getElementById('toggle-auth-mode').textContent = isLogin ? 'Already have an account? Login' : "Don't have an account? Sign Up";
   document.getElementById('name-field').classList.toggle('hidden', !isLogin);
   document.getElementById('family-code-field').classList.toggle('hidden', !isLogin);
+  document.getElementById('forgot-password-btn').classList.toggle('hidden', isLogin);
+  document.getElementById('auth-error').textContent = '';
+  document.getElementById('reset-success').classList.add('hidden');
 });
 
+// ============================================
+// SIGNUP / LOGIN
+// ============================================
 document.getElementById('auth-submit-btn').addEventListener('click', async () => {
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
   const isSignup = document.getElementById('auth-title').textContent === 'Join Familia';
   const errEl = document.getElementById('auth-error');
+  const btn = document.getElementById('auth-submit-btn');
   errEl.textContent = '';
 
   try {
     if (isSignup) {
       const name = document.getElementById('auth-name').value.trim();
       const familyCode = document.getElementById('auth-family-code').value.trim().toLowerCase().replace(/\s/g, '');
-      if (!name || !familyCode) { errEl.textContent = 'Name aur Family Code dono zaroori hain!'; return; }
+      const familyCodeConfirm = document.getElementById('auth-family-code-confirm').value.trim().toLowerCase().replace(/\s/g, '');
+
+      if (!name) { errEl.textContent = 'Naam daalo.'; return; }
+      if (!familyCode) { errEl.textContent = 'Family code daalo.'; return; }
+      if (familyCode !== familyCodeConfirm) { errEl.textContent = 'Dono family codes match nahi kar rahe!'; return; }
+      if (!/^[a-z0-9]+$/.test(familyCode)) { errEl.textContent = 'Sirf lowercase letters aur numbers allowed hain.'; return; }
+
+      btn.textContent = 'Please wait...';
+      btn.disabled = true;
+
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(cred.user, { displayName: name });
-      await setDoc(doc(db, 'families', familyCode, 'members', cred.user.uid), {
-        name, email, uid: cred.user.uid, role: 'caretaker', joinedAt: serverTimestamp()
-      });
-      await setDoc(doc(db, 'users', cred.user.uid), { name, email, familyCode, uid: cred.user.uid });
-      localStorage.setItem('familyCode', familyCode);
+
+      // Check if family exists
+      const familyMeta = await getDoc(doc(db, 'families', familyCode, 'meta', 'info'));
+
+      if (!familyMeta.exists()) {
+        // New family — confirm first
+        const confirmed = confirm(`"${familyCode}" family exist nahi karti.\n\nNaya family dashboard banana chahte ho?`);
+        if (!confirmed) {
+          await cred.user.delete();
+          btn.textContent = 'Create Account';
+          btn.disabled = false;
+          errEl.textContent = 'Signup cancel kiya. Sahi family code dobara try karo.';
+          return;
+        }
+        // Create new family, this user = admin
+        await setDoc(doc(db, 'families', familyCode, 'meta', 'info'), {
+          createdBy: cred.user.uid, createdAt: serverTimestamp(), adminUid: cred.user.uid
+        });
+        await setDoc(doc(db, 'families', familyCode, 'members', cred.user.uid), {
+          name, email, uid: cred.user.uid, role: 'admin', status: 'active', joinedAt: serverTimestamp()
+        });
+        await setDoc(doc(db, 'users', cred.user.uid), {
+          name, email, familyCode, uid: cred.user.uid, role: 'admin', status: 'active'
+        });
+        localStorage.setItem('familyCode', familyCode);
+
+      } else {
+        // Existing family — send join request
+        await setDoc(doc(db, 'families', familyCode, 'join_requests', cred.user.uid), {
+          name, email, uid: cred.user.uid, requestedAt: serverTimestamp(), status: 'pending'
+        });
+        await setDoc(doc(db, 'users', cred.user.uid), {
+          name, email, familyCode, uid: cred.user.uid, role: 'member', status: 'pending'
+        });
+        localStorage.setItem('familyCode', familyCode);
+        localStorage.setItem('memberStatus', 'pending');
+      }
+
+      btn.textContent = 'Create Account';
+      btn.disabled = false;
+
     } else {
+      // Login
       const cred = await signInWithEmailAndPassword(auth, email, password);
       if (!localStorage.getItem('familyCode')) {
         const userDoc = await getDoc(doc(db, 'users', cred.user.uid));
-        if (userDoc.exists()) localStorage.setItem('familyCode', userDoc.data().familyCode);
+        if (userDoc.exists()) {
+          localStorage.setItem('familyCode', userDoc.data().familyCode);
+          if (userDoc.data().status === 'pending') localStorage.setItem('memberStatus', 'pending');
+        }
       }
     }
+  } catch (e) {
+    btn.textContent = isSignup ? 'Create Account' : 'Login';
+    btn.disabled = false;
+    errEl.textContent = e.message.replace('Firebase: ', '').replace(/\(auth.*\)\.?/, '');
+  }
+});
+
+// ============================================
+// FORGOT PASSWORD
+// ============================================
+document.getElementById('forgot-password-btn').addEventListener('click', async () => {
+  const email = document.getElementById('auth-email').value.trim();
+  const errEl = document.getElementById('auth-error');
+  const successEl = document.getElementById('reset-success');
+  errEl.textContent = '';
+  successEl.classList.add('hidden');
+  if (!email) { errEl.textContent = 'Pehle email daalo.'; return; }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    successEl.classList.remove('hidden');
   } catch (e) {
     errEl.textContent = e.message.replace('Firebase: ', '').replace(/\(auth.*\)\.?/, '');
   }
@@ -137,37 +249,111 @@ document.getElementById('auth-submit-btn').addEventListener('click', async () =>
 // AUTH STATE
 // ============================================
 onAuthStateChanged(auth, async (user) => {
+  hideSplash();
   if (user) {
     if (!localStorage.getItem('familyCode')) {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) localStorage.setItem('familyCode', userDoc.data().familyCode);
+      if (userDoc.exists()) {
+        localStorage.setItem('familyCode', userDoc.data().familyCode);
+        if (userDoc.data().status === 'pending') localStorage.setItem('memberStatus', 'pending');
+      }
     }
-    showScreen('pin-screen');
-    setupPinScreen();
+    const status = localStorage.getItem('memberStatus');
+    if (status === 'pending') {
+      // Re-check in case approved already
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists() && userDoc.data().status === 'active') {
+        localStorage.removeItem('memberStatus');
+        showScreen('pin-screen');
+        setupPinScreen();
+      } else {
+        showScreen('pending-screen');
+        document.getElementById('pending-family-code').textContent = getFamilyId();
+        listenForApproval(user);
+      }
+    } else {
+      showScreen('pin-screen');
+      setupPinScreen();
+    }
   } else {
     showScreen('auth-screen');
   }
 });
 
 // ============================================
-// PIN
+// LISTEN FOR APPROVAL (pending screen)
+// ============================================
+function listenForApproval(user) {
+  const unsub = onSnapshot(doc(db, 'users', user.uid), (snap) => {
+    if (snap.exists() && snap.data().status === 'active') {
+      localStorage.removeItem('memberStatus');
+      unsub();
+      showScreen('pin-screen');
+      setupPinScreen();
+    }
+  });
+}
+
+// ============================================
+// CANCEL JOIN REQUEST
+// ============================================
+document.getElementById('cancel-join-request-btn').addEventListener('click', async () => {
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    await deleteDoc(doc(db, 'families', getFamilyId(), 'join_requests', user.uid));
+    await updateDoc(doc(db, 'users', user.uid), { status: 'cancelled', familyCode: null });
+  } catch (e) {}
+  localStorage.removeItem('familyCode');
+  localStorage.removeItem('memberStatus');
+  await signOut(auth);
+});
+
+// ============================================
+// PIN SCREEN
 // ============================================
 function setupPinScreen() {
-  let pinClicks = 0;
+  let pinEntry = '';
   const pinInputs = document.querySelectorAll('.pin-dot');
-  pinInputs.forEach(i => i.value = '');
+  const pinErrorEl = document.getElementById('pin-error');
+  pinInputs.forEach(i => { i.value = ''; i.style.borderColor = ''; });
+  if (pinErrorEl) pinErrorEl.textContent = '';
+
+  function updateDots() {
+    pinInputs.forEach((inp, idx) => {
+      inp.value = idx < pinEntry.length ? '•' : '';
+      inp.style.borderColor = idx < pinEntry.length ? '#7BAE9A' : '';
+    });
+  }
+
+  async function checkPin() {
+    const stored = await getStoredPin();
+    if (pinEntry === stored) {
+      pinInputs.forEach(i => { i.style.borderColor = '#22c55e'; });
+      setTimeout(() => { showScreen('dashboard-screen'); loadDashboard(); }, 350);
+    } else {
+      if (pinErrorEl) pinErrorEl.textContent = 'Galat PIN. Try again.';
+      pinInputs.forEach(i => { i.style.borderColor = '#ef4444'; });
+      pinEntry = '';
+      setTimeout(() => {
+        pinInputs.forEach(i => { i.style.borderColor = ''; i.value = ''; });
+        if (pinErrorEl) pinErrorEl.textContent = '';
+      }, 800);
+    }
+  }
 
   document.querySelectorAll('.numpad-btn').forEach(btn => {
     btn.onclick = () => {
-      if (pinClicks < 4) { pinInputs[pinClicks].value = '•'; pinClicks++; }
-      if (pinClicks === 4) {
-        setTimeout(() => { showScreen('dashboard-screen'); loadDashboard(); }, 400);
-      }
+      if (pinEntry.length < 4) { pinEntry += btn.textContent.trim(); updateDots(); }
+      if (pinEntry.length === 4) setTimeout(checkPin, 150);
     };
   });
 
   const backBtn = document.querySelector('.backspace-btn');
-  if (backBtn) backBtn.onclick = () => { if (pinClicks > 0) { pinClicks--; pinInputs[pinClicks].value = ''; } };
+  if (backBtn) backBtn.onclick = () => {
+    if (pinEntry.length > 0) { pinEntry = pinEntry.slice(0, -1); updateDots(); }
+    if (pinErrorEl) pinErrorEl.textContent = '';
+  };
 }
 
 // ============================================
@@ -176,10 +362,12 @@ function setupPinScreen() {
 async function handleLogout() {
   stopSiren();
   localStorage.removeItem('familyCode');
+  localStorage.removeItem('memberStatus');
   await signOut(auth);
 }
 document.getElementById('logout-btn').addEventListener('click', handleLogout);
 document.getElementById('logout-dash-btn').addEventListener('click', handleLogout);
+document.getElementById('logout-settings-btn').addEventListener('click', handleLogout);
 
 // ============================================
 // DASHBOARD
@@ -193,7 +381,142 @@ function loadDashboard() {
   loadTodayMood();
   loadTasks('tasks-list');
   loadFamilyMembers();
+  loadJoinRequests();
 }
+
+// ============================================
+// JOIN REQUESTS (admin only)
+// ============================================
+function loadJoinRequests() {
+  const user = auth.currentUser;
+  if (!user) return;
+  getDoc(doc(db, 'users', user.uid)).then(snap => {
+    if (!snap.exists() || snap.data().role !== 'admin') return;
+    onSnapshot(
+      query(collection(db, 'families', getFamilyId(), 'join_requests'), where('status', '==', 'pending')),
+      (snap) => {
+        const banner = document.getElementById('join-requests-banner');
+        const list = document.getElementById('join-requests-list');
+        const count = document.getElementById('join-requests-count');
+        if (!banner || !list) return;
+        if (snap.empty) { banner.classList.add('hidden'); return; }
+        banner.classList.remove('hidden');
+        count.textContent = snap.size;
+        list.innerHTML = '';
+        snap.forEach(docSnap => {
+          const req = docSnap.data();
+          list.innerHTML += `
+            <div class="flex items-center justify-between bg-white rounded-xl px-3 py-2.5 border border-amber-100">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-sm">${req.name[0].toUpperCase()}</div>
+                <div>
+                  <p class="font-semibold text-slate-800 text-sm">${req.name}</p>
+                  <p class="text-xs text-slate-400">${req.email}</p>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="approveRequest('${req.uid}','${req.name}','${req.email}')"
+                  class="w-8 h-8 rounded-full bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center active:scale-90">
+                  <span class="material-symbols-outlined text-sm">check</span>
+                </button>
+                <button onclick="denyRequest('${req.uid}')"
+                  class="w-8 h-8 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center active:scale-90">
+                  <span class="material-symbols-outlined text-sm">close</span>
+                </button>
+              </div>
+            </div>
+          `;
+        });
+      }
+    );
+  });
+}
+
+window.approveRequest = async (uid, name, email) => {
+  const familyCode = getFamilyId();
+  await updateDoc(doc(db, 'families', familyCode, 'join_requests', uid), { status: 'approved' });
+  await setDoc(doc(db, 'families', familyCode, 'members', uid), {
+    name, email, uid, role: 'member', status: 'active', joinedAt: serverTimestamp()
+  });
+  await updateDoc(doc(db, 'users', uid), { status: 'active' });
+};
+
+window.denyRequest = async (uid) => {
+  if (!confirm('Request deny karo?')) return;
+  await updateDoc(doc(db, 'families', getFamilyId(), 'join_requests', uid), { status: 'denied' });
+  await updateDoc(doc(db, 'users', uid), { status: 'denied', familyCode: null });
+};
+
+// ============================================
+// SETTINGS
+// ============================================
+function loadSettings() {
+  const user = auth.currentUser;
+  if (!user) return;
+  const name = user.displayName || 'Friend';
+  document.getElementById('settings-avatar').textContent = name[0].toUpperCase();
+  document.getElementById('settings-name').textContent = name;
+  document.getElementById('settings-email').textContent = user.email;
+  document.getElementById('settings-family').textContent = `Family: ${getFamilyId()}`;
+  document.getElementById('current-family-code-display').textContent = getFamilyId();
+}
+
+document.getElementById('change-pin-btn').addEventListener('click', async () => {
+  const currentPin = document.getElementById('current-pin').value.trim();
+  const newPin = document.getElementById('new-pin').value.trim();
+  const confirmPin = document.getElementById('confirm-pin').value.trim();
+  const errEl = document.getElementById('pin-change-error');
+  errEl.style.color = '';
+  errEl.textContent = '';
+
+  if (!/^\d{4}$/.test(currentPin) || !/^\d{4}$/.test(newPin) || !/^\d{4}$/.test(confirmPin)) {
+    errEl.textContent = 'Sab fields mein exactly 4 digits daalo.'; return;
+  }
+  if (newPin !== confirmPin) { errEl.textContent = 'New PIN aur Confirm PIN match nahi.'; return; }
+  const stored = await getStoredPin();
+  if (currentPin !== stored) { errEl.textContent = 'Current PIN galat hai.'; return; }
+  await savePin(newPin);
+  errEl.style.color = '#22c55e';
+  errEl.textContent = 'PIN update ho gaya! ✓';
+  document.getElementById('current-pin').value = '';
+  document.getElementById('new-pin').value = '';
+  document.getElementById('confirm-pin').value = '';
+  setTimeout(() => { errEl.textContent = ''; errEl.style.color = ''; }, 2500);
+});
+
+document.getElementById('change-family-code-btn').addEventListener('click', async () => {
+  const newCode = document.getElementById('new-family-code').value.trim().toLowerCase().replace(/\s/g, '');
+  const confirmCode = document.getElementById('new-family-code-confirm').value.trim().toLowerCase().replace(/\s/g, '');
+  const errEl = document.getElementById('family-code-change-error');
+  errEl.style.color = '';
+  errEl.textContent = '';
+
+  if (!newCode) { errEl.textContent = 'Naya code daalo.'; return; }
+  if (newCode === getFamilyId()) { errEl.textContent = 'Yeh toh same code hai!'; return; }
+  if (newCode !== confirmCode) { errEl.textContent = 'Dono codes match nahi kar rahe.'; return; }
+  if (!/^[a-z0-9]+$/.test(newCode)) { errEl.textContent = 'Sirf lowercase letters aur numbers.'; return; }
+
+  const user = auth.currentUser;
+  const newFamilySnap = await getDoc(doc(db, 'families', newCode, 'meta', 'info'));
+  if (newFamilySnap.exists()) { errEl.textContent = 'Yeh code pehle se exist karta hai.'; return; }
+
+  const oldMemberSnap = await getDoc(doc(db, 'families', getFamilyId(), 'members', user.uid));
+  const memberData = oldMemberSnap.exists() ? oldMemberSnap.data() : {};
+
+  await setDoc(doc(db, 'families', newCode, 'meta', 'info'), {
+    createdBy: user.uid, createdAt: serverTimestamp(), adminUid: user.uid
+  });
+  await setDoc(doc(db, 'families', newCode, 'members', user.uid), { ...memberData, role: 'admin' });
+  await updateDoc(doc(db, 'users', user.uid), { familyCode: newCode, role: 'admin' });
+  localStorage.setItem('familyCode', newCode);
+
+  document.getElementById('new-family-code').value = '';
+  document.getElementById('new-family-code-confirm').value = '';
+  errEl.style.color = '#22c55e';
+  errEl.textContent = `Code "${newCode}" set ho gaya! ✓`;
+  loadSettings();
+  setTimeout(() => { errEl.textContent = ''; errEl.style.color = ''; }, 3000);
+});
 
 // ============================================
 // MOOD
@@ -207,8 +530,8 @@ function loadTodayMood() {
       const circle = btn.querySelector('.mood-circle');
       if (!circle) return;
       circle.className = btn.dataset.mood === mood
-        ? 'mood-circle w-12 h-12 rounded-full bg-accent-pink border-2 border-accent-pink-dark flex items-center justify-center text-2xl scale-110 shadow-sm'
-        : 'mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100';
+        ? 'mood-circle w-12 h-12 rounded-full bg-accent-pink border-2 border-accent-pink-dark flex items-center justify-center text-2xl scale-110 shadow-sm transition-all'
+        : 'mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100 transition-all';
     });
     const timeEl = document.getElementById('mood-time');
     if (timeEl) timeEl.textContent = `Updated ${snap.data().time}`;
@@ -233,26 +556,22 @@ let tasksUnsub = null;
 function loadTasks(containerId) {
   if (tasksUnsub) tasksUnsub();
   const today = new Date().toISOString().split('T')[0];
-
   tasksUnsub = onSnapshot(
     query(collection(db, 'families', getFamilyId(), 'tasks'), where('date', '==', today)),
     (snap) => {
       const container = document.getElementById(containerId);
       if (!container) return;
       container.innerHTML = '';
-
       if (snap.empty) {
         container.innerHTML = `<p class="text-center text-slate-400 py-8">Aaj koi task nahi. Add karo! 🎉</p>`;
         return;
       }
-
       const docs = [];
       snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
       docs.sort((a, b) => a.time > b.time ? 1 : -1);
-
       docs.forEach(task => {
         container.innerHTML += `
-          <div class="${task.done ? 'opacity-60 bg-white/60 border-slate-200' : 'bg-surface-pink border-l-4 border-primary'} rounded-xl p-4 shadow-sm border mb-3">
+          <div class="${task.done ? 'opacity-60 bg-white/60 border-slate-200' : 'bg-surface-pink border-l-4 border-primary'} rounded-xl p-4 shadow-sm border mb-3 transition-all">
             <div class="flex items-center justify-between">
               <div class="flex gap-3 items-center">
                 <div class="w-10 h-10 rounded-full ${task.done ? 'bg-slate-100 text-slate-400' : 'bg-white text-primary'} flex items-center justify-center shrink-0">
@@ -265,10 +584,10 @@ function loadTasks(containerId) {
               </div>
               <div class="flex gap-2">
                 ${!task.done
-                  ? `<button onclick="markTaskDone('${task.id}')" class="w-8 h-8 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white flex items-center justify-center transition-colors"><span class="material-symbols-outlined text-sm">check</span></button>`
+                  ? `<button onclick="markTaskDone('${task.id}')" class="w-8 h-8 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white flex items-center justify-center transition-colors active:scale-90"><span class="material-symbols-outlined text-sm">check</span></button>`
                   : `<div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center"><span class="material-symbols-outlined text-sm">check</span></div>`
                 }
-                <button onclick="deleteTask('${task.id}')" class="w-8 h-8 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center"><span class="material-symbols-outlined text-sm">delete</span></button>
+                <button onclick="deleteTask('${task.id}')" class="w-8 h-8 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center active:scale-90"><span class="material-symbols-outlined text-sm">delete</span></button>
               </div>
             </div>
           </div>
@@ -318,10 +637,10 @@ function loadMeds() {
       const id = docSnap.id;
       const lowStock = med.stock <= 5;
       container.innerHTML += `
-        <div class="bg-white rounded-xl p-4 shadow-sm border ${lowStock ? 'border-red-200' : 'border-slate-100'} mb-3">
+        <div class="bg-white rounded-xl p-4 shadow-sm border ${lowStock ? 'border-red-200 bg-red-50/30' : 'border-slate-100'} mb-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+              <div class="w-10 h-10 rounded-full ${lowStock ? 'bg-red-100 text-red-500' : 'bg-primary/10 text-primary'} flex items-center justify-center">
                 <span class="material-symbols-outlined icon-filled">pill</span>
               </div>
               <div>
@@ -331,10 +650,10 @@ function loadMeds() {
               </div>
             </div>
             <div class="flex gap-2">
-              <button onclick="decrementMed('${id}', ${med.stock})" class="w-8 h-8 rounded-full bg-orange-50 text-orange-500 hover:bg-orange-100 flex items-center justify-center">
+              <button onclick="decrementMed('${id}', ${med.stock})" class="w-8 h-8 rounded-full bg-orange-50 text-orange-500 hover:bg-orange-100 flex items-center justify-center active:scale-90">
                 <span class="material-symbols-outlined text-sm">remove</span>
               </button>
-              <button onclick="deleteMed('${id}')" class="w-8 h-8 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center">
+              <button onclick="deleteMed('${id}')" class="w-8 h-8 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center active:scale-90">
                 <span class="material-symbols-outlined text-sm">delete</span>
               </button>
             </div>
@@ -429,8 +748,9 @@ function loadFamilyMembers() {
     container.innerHTML = '';
     snap.forEach(docSnap => {
       const member = docSnap.data();
+      if (member.status !== 'active') return; // pending members mat dikhao
       const initials = member.name.split(' ').map(n => n[0]).join('').toUpperCase();
-      container.innerHTML += `<div class="w-12 h-12 rounded-full border-2 border-white ${colors[i % colors.length]} flex items-center justify-center text-white font-bold text-sm" title="${member.name}">${initials}</div>`;
+      container.innerHTML += `<div class="w-12 h-12 rounded-full border-2 border-white ${colors[i % colors.length]} flex items-center justify-center text-white font-bold text-sm shadow-sm" title="${member.name}">${initials}</div>`;
       i++;
     });
     container.innerHTML += `<button class="w-12 h-12 rounded-full border-2 border-dashed border-primary text-primary bg-primary-light flex items-center justify-center hover:bg-primary/20 transition-colors ml-1"><span class="material-symbols-outlined">add</span></button>`;
@@ -449,6 +769,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (target === 'chat-screen') loadChat();
     if (target === 'meds-screen') loadMeds();
     if (target === 'tasks-screen') loadTasks('tasks-list-full');
+    if (target === 'settings-screen') loadSettings();
   });
 });
 
