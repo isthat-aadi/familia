@@ -360,6 +360,99 @@ function setupPinScreen() {
   };
 }
 
+    // ============================================
+// PIN SETUP (naye user ke liye)
+// ============================================
+function setupPinSetupScreen() {
+  let firstPin = '';
+  let confirmPin = '';
+  let isConfirming = false;
+
+  const dots = document.querySelectorAll('.pin-setup-dot');
+  const titleEl = document.getElementById('pin-setup-title');
+  const subtitleEl = document.getElementById('pin-setup-subtitle');
+  const errorEl = document.getElementById('pin-setup-error');
+
+  function resetDots() {
+    dots.forEach(d => { d.value = ''; d.style.borderColor = ''; });
+  }
+
+  function updateDots(entry) {
+    dots.forEach((d, i) => {
+      d.value = i < entry.length ? '•' : '';
+      d.style.borderColor = i < entry.length ? '#7BAE9A' : '';
+    });
+  }
+
+  document.querySelectorAll('.pin-setup-btn').forEach(btn => {
+    btn.onclick = () => {
+      const current = isConfirming ? confirmPin : firstPin;
+      if (current.length >= 4) return;
+
+      if (isConfirming) {
+        confirmPin += btn.textContent.trim();
+        updateDots(confirmPin);
+      } else {
+        firstPin += btn.textContent.trim();
+        updateDots(firstPin);
+      }
+
+      const entry = isConfirming ? confirmPin : firstPin;
+
+      if (entry.length === 4) {
+        if (!isConfirming) {
+          // Move to confirm step
+          setTimeout(() => {
+            isConfirming = true;
+            confirmPin = '';
+            resetDots();
+            titleEl.textContent = 'Confirm PIN';
+            subtitleEl.textContent = 'Dobara wahi PIN daalo to confirm karo.';
+            errorEl.textContent = '';
+          }, 200);
+        } else {
+          // Compare
+          setTimeout(async () => {
+            if (firstPin === confirmPin) {
+              dots.forEach(d => { d.style.borderColor = '#22c55e'; });
+              await savePin(firstPin);
+              setTimeout(() => {
+                showScreen('dashboard-screen');
+                loadDashboard();
+              }, 400);
+            } else {
+              errorEl.textContent = 'PINs match nahi kiye. Dobara try karo.';
+              dots.forEach(d => { d.style.borderColor = '#ef4444'; });
+              setTimeout(() => {
+                // Reset to first step
+                firstPin = '';
+                confirmPin = '';
+                isConfirming = false;
+                resetDots();
+                titleEl.textContent = 'Set Your PIN';
+                subtitleEl.textContent = 'Choose a 4-digit PIN to secure Familia.';
+                errorEl.textContent = '';
+              }, 900);
+            }
+          }, 150);
+        }
+      }
+    };
+  });
+
+  const backBtn = document.querySelector('.pin-setup-backspace');
+  if (backBtn) backBtn.onclick = () => {
+    if (isConfirming) {
+      confirmPin = confirmPin.slice(0, -1);
+      updateDots(confirmPin);
+    } else {
+      firstPin = firstPin.slice(0, -1);
+      updateDots(firstPin);
+    }
+    errorEl.textContent = '';
+  };
+}
+    
 // ============================================
 // LOGOUT
 // ============================================
