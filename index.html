@@ -32,38 +32,82 @@
     .material-symbols-outlined { font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24; }
     .icon-filled { font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24; }
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+    #splash-screen {
+      position: fixed; inset: 0; z-index: 999;
+      background: linear-gradient(160deg, #2E4532 0%, #5D8C7A 60%, #7BAE9A 100%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    #splash-screen.fade-out { opacity: 0; transform: scale(1.05); pointer-events: none; }
+
+    @keyframes splash-logo {
+      0% { transform: scale(0.7) translateY(20px); opacity: 0; }
+      60% { transform: scale(1.08) translateY(-4px); opacity: 1; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    @keyframes splash-text {
+      0% { opacity: 0; transform: translateY(12px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    .splash-logo { animation: splash-logo 0.7s cubic-bezier(0.34,1.56,0.64,1) 0.2s both; }
+    .splash-title { animation: splash-text 0.5s ease 0.75s both; }
+    .splash-tagline { animation: splash-text 0.5s ease 1s both; }
+
+    @keyframes slide-up {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .modal-sheet { animation: slide-up 0.3s cubic-bezier(0.34,1.2,0.64,1); }
   </style>
 </head>
 <body class="bg-background-light font-display antialiased">
 
+  <!-- ===== SPLASH ===== -->
+  <div id="splash-screen">
+    <div class="splash-logo w-24 h-24 bg-white/15 backdrop-blur-sm rounded-3xl flex items-center justify-center mb-6 shadow-lg">
+      <span class="material-symbols-outlined icon-filled text-white text-6xl">home_health</span>
+    </div>
+    <h1 class="splash-title text-4xl font-bold text-white tracking-tight">Familia</h1>
+    <p class="splash-tagline text-white/70 text-sm mt-2 font-medium" style="animation-delay:1s">Care, together.</p>
+  </div>
+
   <!-- ===== AUTH SCREEN ===== -->
   <div id="auth-screen" class="hidden min-h-screen flex-col items-center justify-center p-6 bg-sage-bg text-text-main">
-    <div class="w-20 h-20 mb-6 bg-white rounded-3xl shadow-soft flex items-center justify-center p-3">
-      <img src="https://cdn-icons-png.flaticon.com/512/4320/4320330.png" alt="Logo" class="w-full h-full object-contain" />
+    <div class="w-20 h-20 mb-6 bg-white rounded-3xl shadow-soft flex items-center justify-center">
+      <span class="material-symbols-outlined icon-filled text-primary text-5xl">home_health</span>
     </div>
     <h1 id="auth-title" class="text-3xl font-bold mb-1">Welcome Back</h1>
     <p class="text-sage-dark/70 mb-8 text-sm">Sign in to your family dashboard</p>
 
     <div class="w-full max-w-sm flex flex-col gap-3">
-      <!-- Name (signup only) -->
       <div id="name-field" class="hidden">
-        <input id="auth-name" type="text" placeholder="Your Name" class="w-full h-14 px-4 rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-primary focus:outline-none text-text-main font-medium" />
+        <input id="auth-name" type="text" placeholder="Your Name"
+          class="w-full h-14 px-4 rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-primary focus:outline-none text-text-main font-medium" />
       </div>
-      <!-- Family Code (signup only) -->
-      <div id="family-code-field" class="hidden">
-        <input id="auth-family-code" type="text" placeholder="Family Code (e.g. sharma2025)" class="w-full h-14 px-4 rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-primary focus:outline-none text-text-main font-medium" />
-        <p class="text-xs text-sage-dark/60 mt-1 ml-1">All family members use the same code to connect.</p>
+      <div id="family-code-field" class="hidden flex-col gap-2">
+        <input id="auth-family-code" type="text" placeholder="Family Code (e.g. sharma2025)"
+          class="w-full h-14 px-4 rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-primary focus:outline-none text-text-main font-medium" />
+        <input id="auth-family-code-confirm" type="text" placeholder="Confirm Family Code"
+          class="w-full h-14 px-4 rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-primary focus:outline-none text-text-main font-medium" />
+        <p class="text-xs text-sage-dark/60 ml-1">Existing family ka code daalo to join request jayegi. Naya code = naya family.</p>
       </div>
 
-      <input id="auth-email" type="email" placeholder="Email" class="w-full h-14 px-4 rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-primary focus:outline-none text-text-main font-medium" />
-      <input id="auth-password" type="password" placeholder="Password" class="w-full h-14 px-4 rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-primary focus:outline-none text-text-main font-medium" />
+      <input id="auth-email" type="email" placeholder="Email"
+        class="w-full h-14 px-4 rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-primary focus:outline-none text-text-main font-medium" />
+      <input id="auth-password" type="password" placeholder="Password"
+        class="w-full h-14 px-4 rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-primary focus:outline-none text-text-main font-medium" />
 
       <p id="auth-error" class="text-red-500 text-sm text-center min-h-[20px]"></p>
+      <p id="reset-success" class="hidden text-green-600 text-sm text-center bg-green-50 rounded-xl p-3">Reset link sent! Check your email.</p>
 
-      <button id="auth-submit-btn" class="w-full h-14 bg-primary hover:bg-primary-dark text-white rounded-2xl font-bold text-lg transition-colors active:scale-95">
+      <button id="auth-submit-btn" class="w-full h-14 bg-primary hover:bg-primary-dark text-white rounded-2xl font-bold text-lg transition-all active:scale-95 shadow-md shadow-primary/30">
         Login
       </button>
-      <button id="toggle-auth-mode" class="text-primary font-semibold text-sm underline underline-offset-4 mt-2">
+      <button id="forgot-password-btn" class="hidden text-sage-dark/60 text-sm underline underline-offset-4">
+        Forgot password?
+      </button>
+      <button id="toggle-auth-mode" class="text-primary font-semibold text-sm underline underline-offset-4 mt-1">
         Don't have an account? Sign Up
       </button>
     </div>
@@ -83,13 +127,14 @@
         </div>
         <h1 class="text-4xl font-bold text-center mb-4 tracking-tight">Enter PIN</h1>
         <p class="text-xl font-medium text-center text-sage-dark/80 max-w-[85%]">Enter your 4-digit code to unlock Familia.</p>
+        <p id="pin-error" class="text-red-500 text-sm mt-3 min-h-[20px]"></p>
       </div>
       <div class="flex justify-center w-full mb-10">
         <fieldset class="flex gap-4 sm:gap-6 justify-center">
-          <input aria-label="Digit 1" class="pin-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-sage-dark focus:outline-none text-text-main shadow-sm" readonly type="password" />
-          <input aria-label="Digit 2" class="pin-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-sage-dark focus:outline-none text-text-main shadow-sm" readonly type="password" />
-          <input aria-label="Digit 3" class="pin-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-sage-dark focus:outline-none text-text-main shadow-sm" readonly type="password" />
-          <input aria-label="Digit 4" class="pin-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:border-sage-dark focus:outline-none text-text-main shadow-sm" readonly type="password" />
+          <input aria-label="Digit 1" class="pin-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:outline-none text-text-main shadow-sm transition-all" readonly type="password" />
+          <input aria-label="Digit 2" class="pin-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:outline-none text-text-main shadow-sm transition-all" readonly type="password" />
+          <input aria-label="Digit 3" class="pin-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:outline-none text-text-main shadow-sm transition-all" readonly type="password" />
+          <input aria-label="Digit 4" class="pin-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:outline-none text-text-main shadow-sm transition-all" readonly type="password" />
         </fieldset>
       </div>
       <div class="grid grid-cols-3 gap-x-6 gap-y-5 w-full max-w-[340px] mb-4">
@@ -114,11 +159,36 @@
     <div class="h-8"></div>
   </div>
 
+  <!-- ===== PENDING SCREEN ===== -->
+  <div id="pending-screen" class="hidden min-h-screen flex-col items-center justify-center p-6 bg-sage-bg text-text-main max-w-md mx-auto">
+    <div class="w-20 h-20 mb-6 bg-white rounded-3xl shadow-soft flex items-center justify-center">
+      <span class="material-symbols-outlined icon-filled text-amber-400 text-5xl">hourglass_top</span>
+    </div>
+    <h1 class="text-2xl font-bold mb-2 text-center">Request Sent!</h1>
+    <p class="text-sage-dark/70 text-center text-sm mb-8 max-w-xs">
+      Tumhari join request <span id="pending-family-code" class="font-bold text-primary"></span> family ko bhej di gayi hai. Existing member ke approve karne ka wait karo.
+    </p>
+    <div class="bg-white rounded-2xl p-5 w-full max-w-sm shadow-sm border border-slate-100 mb-6">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="material-symbols-outlined text-primary icon-filled">info</span>
+        <h3 class="font-semibold text-slate-700">Kya hoga ab?</h3>
+      </div>
+      <ul class="text-sm text-slate-500 flex flex-col gap-2 ml-8 list-disc">
+        <li>Family member ko dashboard pe request dikhegi</li>
+        <li>Unke approve karne pe tumhe access milega</li>
+        <li>Galat code daala? Neeche cancel karo</li>
+      </ul>
+    </div>
+    <button id="cancel-join-request-btn" class="w-full max-w-sm h-12 border-2 border-red-200 text-red-500 rounded-xl font-semibold hover:bg-red-50 transition-colors active:scale-95">
+      Cancel Request & Sign Out
+    </button>
+  </div>
+
   <!-- ===== DASHBOARD SCREEN ===== -->
   <div id="dashboard-screen" class="hidden relative min-h-screen w-full flex-col max-w-md mx-auto bg-background-light overflow-x-hidden shadow-xl pb-24">
     <header class="flex items-center justify-between px-6 pt-12 pb-4 bg-background-light sticky top-0 z-10">
       <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white font-bold text-lg">
+        <div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white font-bold text-lg shadow-md shadow-primary/30">
           <span id="dash-avatar">F</span>
         </div>
         <div>
@@ -126,14 +196,31 @@
           <p class="text-sm text-slate-500">Family Dashboard</p>
         </div>
       </div>
-      <button id="logout-dash-btn" class="text-slate-400 hover:text-red-400 transition-colors bg-white/50 p-2 rounded-full">
-        <span class="material-symbols-outlined text-2xl">logout</span>
-      </button>
+      <div class="flex gap-2">
+        <button class="nav-btn text-slate-400 hover:text-primary transition-colors bg-white p-2 rounded-full shadow-sm" data-screen="settings-screen">
+          <span class="material-symbols-outlined text-2xl">settings</span>
+        </button>
+        <button id="logout-dash-btn" class="text-slate-400 hover:text-red-400 transition-colors bg-white/50 p-2 rounded-full">
+          <span class="material-symbols-outlined text-2xl">logout</span>
+        </button>
+      </div>
     </header>
+
+    <!-- Join Requests Banner (admin only) -->
+    <div id="join-requests-banner" class="hidden mx-6 mb-2 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-amber-500 icon-filled">person_add</span>
+          <h4 class="font-bold text-amber-800 text-sm">Join Requests</h4>
+        </div>
+        <span id="join-requests-count" class="bg-amber-400 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+      </div>
+      <div id="join-requests-list" class="flex flex-col gap-2"></div>
+    </div>
 
     <!-- SOS -->
     <div class="px-6 py-4">
-      <button id="sos-btn" class="w-full h-16 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-xl shadow-lg shadow-red-500/30 flex items-center justify-center gap-3 transition-all active:scale-[0.98]">
+      <button id="sos-btn" class="relative w-full h-16 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-xl shadow-lg shadow-red-500/30 flex items-center justify-center gap-3 transition-all active:scale-[0.98]">
         <span class="material-symbols-outlined text-3xl icon-filled">emergency</span>
         <span class="text-xl font-bold tracking-wide">SOS EMERGENCY</span>
       </button>
@@ -147,26 +234,26 @@
 
     <!-- Mood -->
     <section class="px-6 py-4">
-      <div class="bg-surface-pink rounded-xl p-5 shadow-sm border border-pink-100">
+      <div class="bg-surface-pink rounded-2xl p-5 shadow-sm border border-pink-100">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-slate-800">Today's Mood</h3>
           <span id="mood-time" class="text-xs font-medium text-slate-500 bg-white/60 px-2 py-1 rounded-lg">Not set yet</span>
         </div>
         <div class="flex justify-between gap-2">
-          <button class="mood-btn flex flex-col items-center gap-2 flex-1" data-mood="low">
-            <div class="mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100">😔</div>
+          <button class="mood-btn flex flex-col items-center gap-2 flex-1 active:scale-90 transition-transform" data-mood="low">
+            <div class="mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100 transition-all">😔</div>
             <span class="text-xs font-medium text-slate-500">Low</span>
           </button>
-          <button class="mood-btn flex flex-col items-center gap-2 flex-1" data-mood="okay">
-            <div class="mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100">😐</div>
+          <button class="mood-btn flex flex-col items-center gap-2 flex-1 active:scale-90 transition-transform" data-mood="okay">
+            <div class="mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100 transition-all">😐</div>
             <span class="text-xs font-medium text-slate-500">Okay</span>
           </button>
-          <button class="mood-btn flex flex-col items-center gap-2 flex-1" data-mood="good">
-            <div class="mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100">😊</div>
+          <button class="mood-btn flex flex-col items-center gap-2 flex-1 active:scale-90 transition-transform" data-mood="good">
+            <div class="mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100 transition-all">😊</div>
             <span class="text-xs font-medium text-slate-500">Good</span>
           </button>
-          <button class="mood-btn flex flex-col items-center gap-2 flex-1" data-mood="great">
-            <div class="mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100">😄</div>
+          <button class="mood-btn flex flex-col items-center gap-2 flex-1 active:scale-90 transition-transform" data-mood="great">
+            <div class="mood-circle w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl border border-pink-100 transition-all">😄</div>
             <span class="text-xs font-medium text-slate-500">Great</span>
           </button>
         </div>
@@ -177,15 +264,14 @@
     <section class="px-6 py-2 flex-1">
       <div class="flex justify-between items-center mb-4">
         <h3 class="text-lg font-semibold text-slate-800">Today's Tasks</h3>
-        <button class="nav-btn text-sm font-bold text-primary hover:text-primary-dark" data-screen="tasks">View All</button>
+        <button class="nav-btn text-sm font-bold text-primary hover:text-primary-dark" data-screen="tasks-screen">View All</button>
       </div>
       <div id="tasks-list"></div>
-      <button id="open-add-task" class="w-full mt-3 h-12 border-2 border-dashed border-primary/30 hover:border-primary text-primary rounded-xl font-semibold flex items-center justify-center gap-2 transition-colors">
+      <button id="open-add-task" class="w-full mt-3 h-12 border-2 border-dashed border-primary/30 hover:border-primary text-primary rounded-xl font-semibold flex items-center justify-center gap-2 transition-colors active:scale-95">
         <span class="material-symbols-outlined">add</span> Add Task
       </button>
     </section>
 
-    <!-- Bottom Nav -->
     <nav class="fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-slate-200 max-w-md mx-auto">
       <div class="flex justify-around items-center px-2 py-3">
         <button class="nav-btn flex flex-col items-center gap-1 min-w-[64px] text-primary" data-screen="dashboard-screen">
@@ -222,24 +308,19 @@
     <div class="px-6 flex-1">
       <div id="tasks-list-full" class="mt-2"></div>
     </div>
-    <!-- Bottom Nav (same) -->
     <nav class="fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-slate-200 max-w-md mx-auto">
       <div class="flex justify-around items-center px-2 py-3">
         <button class="nav-btn flex flex-col items-center gap-1 min-w-[64px] text-slate-400 hover:text-primary" data-screen="dashboard-screen">
-          <span class="material-symbols-outlined text-2xl">home</span>
-          <span class="text-[10px] font-medium">Home</span>
+          <span class="material-symbols-outlined text-2xl">home</span><span class="text-[10px]">Home</span>
         </button>
         <button class="nav-btn flex flex-col items-center gap-1 min-w-[64px] text-slate-400 hover:text-primary" data-screen="meds-screen">
-          <span class="material-symbols-outlined text-2xl">pill</span>
-          <span class="text-[10px] font-medium">Meds</span>
+          <span class="material-symbols-outlined text-2xl">pill</span><span class="text-[10px]">Meds</span>
         </button>
         <button class="nav-btn flex flex-col items-center gap-1 min-w-[64px] text-slate-400 hover:text-primary" data-screen="chat-screen">
-          <span class="material-symbols-outlined text-2xl">chat_bubble</span>
-          <span class="text-[10px] font-medium">Chat</span>
+          <span class="material-symbols-outlined text-2xl">chat_bubble</span><span class="text-[10px]">Chat</span>
         </button>
         <button class="nav-btn flex flex-col items-center gap-1 min-w-[64px] text-primary" data-screen="tasks-screen">
-          <span class="material-symbols-outlined icon-filled text-2xl">assignment</span>
-          <span class="text-[10px] font-semibold">Tasks</span>
+          <span class="material-symbols-outlined icon-filled text-2xl">assignment</span><span class="text-[10px] font-semibold">Tasks</span>
         </button>
       </div>
     </nav>
@@ -292,17 +373,92 @@
     <div id="chat-messages" class="flex-1 overflow-y-auto px-4 py-4 pb-32"></div>
     <div class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-100 p-4">
       <div class="flex gap-3 items-center">
-        <input id="chat-input" type="text" placeholder="Type a message..." class="flex-1 h-12 px-4 rounded-2xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800 bg-slate-50" />
-        <button id="send-msg-btn" class="w-12 h-12 rounded-full bg-primary hover:bg-primary-dark text-white flex items-center justify-center transition-colors">
+        <input id="chat-input" type="text" placeholder="Type a message..."
+          class="flex-1 h-12 px-4 rounded-2xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800 bg-slate-50" />
+        <button id="send-msg-btn" class="w-12 h-12 rounded-full bg-primary hover:bg-primary-dark text-white flex items-center justify-center transition-colors active:scale-90">
           <span class="material-symbols-outlined icon-filled">send</span>
         </button>
       </div>
     </div>
   </div>
 
+  <!-- ===== SETTINGS SCREEN ===== -->
+  <div id="settings-screen" class="hidden min-h-screen flex-col max-w-md mx-auto bg-background-light pb-24">
+    <header class="flex items-center justify-between px-6 pt-12 pb-4 sticky top-0 bg-background-light z-10">
+      <button class="nav-btn w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100" data-screen="dashboard-screen">
+        <span class="material-symbols-outlined">arrow_back</span>
+      </button>
+      <h2 class="text-xl font-bold text-slate-800">Settings</h2>
+      <div class="w-10"></div>
+    </header>
+    <div class="px-6 flex-1 flex flex-col gap-4 mt-2">
+
+      <!-- Account Info -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Account</h3>
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-white font-bold text-xl shadow-md shadow-primary/30">
+            <span id="settings-avatar">F</span>
+          </div>
+          <div>
+            <p id="settings-name" class="font-bold text-slate-800 text-lg">—</p>
+            <p id="settings-email" class="text-sm text-slate-500">—</p>
+            <p id="settings-family" class="text-xs text-primary font-semibold mt-0.5">Family: —</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Change PIN -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Security — Change PIN</h3>
+        <div class="flex flex-col gap-3">
+          <input id="current-pin" type="password" placeholder="Current PIN" maxlength="4" inputmode="numeric"
+            class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800 tracking-widest text-xl" />
+          <input id="new-pin" type="password" placeholder="New PIN (4 digits)" maxlength="4" inputmode="numeric"
+            class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800 tracking-widest text-xl" />
+          <input id="confirm-pin" type="password" placeholder="Confirm New PIN" maxlength="4" inputmode="numeric"
+            class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800 tracking-widest text-xl" />
+          <p id="pin-change-error" class="text-red-500 text-sm min-h-[20px]"></p>
+          <button id="change-pin-btn" class="w-full h-12 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold transition-all active:scale-95">
+            Update PIN
+          </button>
+        </div>
+      </div>
+
+      <!-- Change Family Code -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-1">Family Code</h3>
+        <p class="text-xs text-slate-400 mb-4">Sirf tabhi change karo jab galti ho gayi ho. Purana family data wahan rahega.</p>
+        <div class="flex flex-col gap-3">
+          <div class="bg-slate-50 rounded-xl px-4 py-3 border border-slate-200">
+            <p class="text-xs text-slate-400 mb-0.5">Current Code</p>
+            <p id="current-family-code-display" class="font-bold text-slate-700 text-lg tracking-wide">—</p>
+          </div>
+          <input id="new-family-code" type="text" placeholder="New Family Code"
+            class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
+          <input id="new-family-code-confirm" type="text" placeholder="Confirm New Family Code"
+            class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
+          <p id="family-code-change-error" class="text-red-500 text-sm min-h-[20px]"></p>
+          <button id="change-family-code-btn" class="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-all active:scale-95">
+            Change Family Code
+          </button>
+        </div>
+      </div>
+
+      <!-- Sign Out -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-red-100">
+        <button id="logout-settings-btn" class="w-full h-12 border-2 border-red-200 text-red-500 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-red-50 transition-colors active:scale-95">
+          <span class="material-symbols-outlined">logout</span> Sign Out
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ===== ADD TASK MODAL ===== -->
   <div id="add-task-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-end justify-center">
-    <div class="bg-white w-full max-w-md rounded-t-3xl p-6 pb-10">
+    <div class="modal-sheet bg-white w-full max-w-md rounded-t-3xl p-6 pb-10">
+      <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-5"></div>
       <div class="flex justify-between items-center mb-6">
         <h3 class="text-xl font-bold text-slate-800">New Task</h3>
         <button id="close-task-modal" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
@@ -310,10 +466,13 @@
         </button>
       </div>
       <div class="flex flex-col gap-3">
-        <input id="task-title" type="text" placeholder="Task name (e.g. Morning Meds)" class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
-        <input id="task-time" type="time" class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
-        <input id="task-note" type="text" placeholder="Note (optional)" class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
-        <button id="add-task-btn" class="w-full h-12 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold transition-colors mt-2">
+        <input id="task-title" type="text" placeholder="Task name (e.g. Morning Meds)"
+          class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
+        <input id="task-time" type="time"
+          class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
+        <input id="task-note" type="text" placeholder="Note (optional)"
+          class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
+        <button id="add-task-btn" class="w-full h-12 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold transition-colors mt-2 active:scale-95">
           Add Task
         </button>
       </div>
@@ -322,7 +481,8 @@
 
   <!-- ===== ADD MED MODAL ===== -->
   <div id="add-med-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-end justify-center">
-    <div class="bg-white w-full max-w-md rounded-t-3xl p-6 pb-10">
+    <div class="modal-sheet bg-white w-full max-w-md rounded-t-3xl p-6 pb-10">
+      <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-5"></div>
       <div class="flex justify-between items-center mb-6">
         <h3 class="text-xl font-bold text-slate-800">Add Medication</h3>
         <button id="close-med-modal" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
@@ -330,16 +490,19 @@
         </button>
       </div>
       <div class="flex flex-col gap-3">
-        <input id="med-name" type="text" placeholder="Medicine name (e.g. Metformin)" class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
-        <input id="med-dosage" type="text" placeholder="Dosage (e.g. 500mg)" class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
+        <input id="med-name" type="text" placeholder="Medicine name (e.g. Metformin)"
+          class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
+        <input id="med-dosage" type="text" placeholder="Dosage (e.g. 500mg)"
+          class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
         <select id="med-frequency" class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800 bg-white">
           <option value="Once daily">Once daily</option>
           <option value="Twice daily">Twice daily</option>
           <option value="Thrice daily">Thrice daily</option>
           <option value="As needed">As needed</option>
         </select>
-        <input id="med-stock" type="number" placeholder="Current stock (no. of pills)" class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
-        <button id="add-med-btn" class="w-full h-12 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold transition-colors mt-2">
+        <input id="med-stock" type="number" placeholder="Current stock (no. of pills)"
+          class="w-full h-12 px-4 rounded-xl border-2 border-slate-200 focus:border-primary focus:outline-none text-slate-800" />
+        <button id="add-med-btn" class="w-full h-12 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold transition-colors mt-2 active:scale-95">
           Add Medication
         </button>
       </div>
