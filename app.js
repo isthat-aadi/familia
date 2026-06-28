@@ -259,26 +259,30 @@ onAuthStateChanged(auth, async (user) => {
       }
     }
     const status = localStorage.getItem('memberStatus');
-    if (status === 'pending') {
-      // Re-check in case approved already
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists() && userDoc.data().status === 'active') {
-        localStorage.removeItem('memberStatus');
-        showScreen('pin-screen');
-        setupPinScreen();
-      } else {
-        showScreen('pending-screen');
-        document.getElementById('pending-family-code').textContent = getFamilyId();
-        listenForApproval(user);
-      }
-    } else {
-      showScreen('pin-screen');
-      setupPinScreen();
-    }
+if (status === 'pending') {
+  const userDoc = await getDoc(doc(db, 'users', user.uid));
+  if (userDoc.exists() && userDoc.data().status === 'active') {
+    localStorage.removeItem('memberStatus');
+    showScreen('pin-screen');
+    setupPinScreen();
   } else {
-    showScreen('auth-screen');
+    showScreen('pending-screen');
+    document.getElementById('pending-family-code').textContent = getFamilyId();
+    listenForApproval(user);
   }
-});
+} else {
+  // Check karo PIN set hai ya nahi
+  const userDoc = await getDoc(doc(db, 'users', user.uid));
+  const pinSet = userDoc.exists() && userDoc.data().pin;
+  if (!pinSet) {
+    // Naya user — PIN setup karo
+    showScreen('pin-setup-screen');
+    setupPinSetupScreen();
+  } else {
+    showScreen('pin-screen');
+    setupPinScreen();
+  }
+}
 
 // ============================================
 // LISTEN FOR APPROVAL (pending screen)
