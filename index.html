@@ -159,6 +159,50 @@
     <div class="h-8"></div>
   </div>
 
+<!-- ===== PIN SETUP SCREEN ===== -->
+<div id="pin-setup-screen" class="hidden bg-sage-bg min-h-screen flex-col justify-between text-text-main">
+  <header class="flex items-center justify-between p-6 pt-10">
+    <div class="w-14 h-14"></div>
+  </header>
+  <main class="flex-1 flex flex-col items-center justify-start w-full max-w-md mx-auto px-6 pb-4 pt-4">
+    <div class="w-full flex flex-col items-center mb-8">
+      <div class="mb-6 p-6 rounded-3xl bg-white shadow-soft text-primary">
+        <span class="material-symbols-outlined text-[56px] icon-filled">lock</span>
+      </div>
+      <h1 id="pin-setup-title" class="text-4xl font-bold text-center mb-4 tracking-tight">Set Your PIN</h1>
+      <p id="pin-setup-subtitle" class="text-lg font-medium text-center text-sage-dark/80 max-w-[85%]">Choose a 4-digit PIN to secure Familia.</p>
+      <p id="pin-setup-error" class="text-red-500 text-sm mt-3 min-h-[20px]"></p>
+    </div>
+    <div class="flex justify-center w-full mb-10">
+      <fieldset class="flex gap-4 sm:gap-6 justify-center">
+        <input aria-label="Digit 1" class="pin-setup-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:outline-none text-text-main shadow-sm transition-all" readonly type="password" />
+        <input aria-label="Digit 2" class="pin-setup-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:outline-none text-text-main shadow-sm transition-all" readonly type="password" />
+        <input aria-label="Digit 3" class="pin-setup-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:outline-none text-text-main shadow-sm transition-all" readonly type="password" />
+        <input aria-label="Digit 4" class="pin-setup-dot h-16 w-14 text-center text-4xl font-bold rounded-2xl border-2 border-sage-dark/20 bg-white focus:outline-none text-text-main shadow-sm transition-all" readonly type="password" />
+      </fieldset>
+    </div>
+    <div class="grid grid-cols-3 gap-x-6 gap-y-5 w-full max-w-[340px] mb-4">
+      <button class="pin-setup-btn h-20 w-full rounded-2xl bg-pink-btn shadow-btn text-3xl font-bold text-text-main active:bg-pink-btn-hover active:scale-95 transition-all">1</button>
+      <button class="pin-setup-btn h-20 w-full rounded-2xl bg-pink-btn shadow-btn text-3xl font-bold text-text-main active:bg-pink-btn-hover active:scale-95 transition-all">2</button>
+      <button class="pin-setup-btn h-20 w-full rounded-2xl bg-pink-btn shadow-btn text-3xl font-bold text-text-main active:bg-pink-btn-hover active:scale-95 transition-all">3</button>
+      <button class="pin-setup-btn h-20 w-full rounded-2xl bg-pink-btn shadow-btn text-3xl font-bold text-text-main active:bg-pink-btn-hover active:scale-95 transition-all">4</button>
+      <button class="pin-setup-btn h-20 w-full rounded-2xl bg-pink-btn shadow-btn text-3xl font-bold text-text-main active:bg-pink-btn-hover active:scale-95 transition-all">5</button>
+      <button class="pin-setup-btn h-20 w-full rounded-2xl bg-pink-btn shadow-btn text-3xl font-bold text-text-main active:bg-pink-btn-hover active:scale-95 transition-all">6</button>
+      <button class="pin-setup-btn h-20 w-full rounded-2xl bg-pink-btn shadow-btn text-3xl font-bold text-text-main active:bg-pink-btn-hover active:scale-95 transition-all">7</button>
+      <button class="pin-setup-btn h-20 w-full rounded-2xl bg-pink-btn shadow-btn text-3xl font-bold text-text-main active:bg-pink-btn-hover active:scale-95 transition-all">8</button>
+      <button class="pin-setup-btn h-20 w-full rounded-2xl bg-pink-btn shadow-btn text-3xl font-bold text-text-main active:bg-pink-btn-hover active:scale-95 transition-all">9</button>
+      <div class="h-20 w-full flex items-center justify-center">
+        <span class="text-sage-dark/30 text-4xl">·</span>
+      </div>
+      <button class="pin-setup-btn h-20 w-full rounded-2xl bg-pink-btn shadow-btn text-3xl font-bold text-text-main active:bg-pink-btn-hover active:scale-95 transition-all">0</button>
+      <button class="pin-setup-backspace h-20 w-full rounded-2xl flex items-center justify-center text-sage-dark hover:bg-sage-dark/10 active:scale-95 transition-all">
+        <span class="material-symbols-outlined text-4xl">backspace</span>
+      </button>
+    </div>
+  </main>
+  <div class="h-8"></div>
+</div>
+  
   <!-- ===== PENDING SCREEN ===== -->
   <div id="pending-screen" class="hidden min-h-screen flex-col items-center justify-center p-6 bg-sage-bg text-text-main max-w-md mx-auto">
     <div class="w-20 h-20 mb-6 bg-white rounded-3xl shadow-soft flex items-center justify-center">
