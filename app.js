@@ -24,7 +24,6 @@ function hideSplash() {
   splash.classList.add('fade-out');
   setTimeout(() => splash.remove(), 500);
 }
-// Failsafe — max 3s even if auth is slow
 setTimeout(hideSplash, 3000);
 
 // ============================================
@@ -47,18 +46,16 @@ function getFamilyId() {
 }
 
 // ============================================
-// PIN — Firestore per user, default 1234
+// PIN — Firestore per user
 // ============================================
-const DEFAULT_PIN = '1234';
-
 async function getStoredPin() {
   const user = auth.currentUser;
-  if (!user) return DEFAULT_PIN;
+  if (!user) return null;
   try {
     const snap = await getDoc(doc(db, 'users', user.uid));
     if (snap.exists() && snap.data().pin) return snap.data().pin;
   } catch (e) {}
-  return DEFAULT_PIN;
+  return null;
 }
 
 async function savePin(newPin) {
@@ -169,11 +166,9 @@ document.getElementById('auth-submit-btn').addEventListener('click', async () =>
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(cred.user, { displayName: name });
 
-      // Check if family exists
       const familyMeta = await getDoc(doc(db, 'families', familyCode, 'meta', 'info'));
 
       if (!familyMeta.exists()) {
-        // New family — confirm first
         const confirmed = confirm(`"${familyCode}" family exist nahi karti.\n\nNaya family dashboard banana chahte ho?`);
         if (!confirmed) {
           await cred.user.delete();
@@ -182,7 +177,6 @@ document.getElementById('auth-submit-btn').addEventListener('click', async () =>
           errEl.textContent = 'Signup cancel kiya. Sahi family code dobara try karo.';
           return;
         }
-        // Create new family, this user = admin
         await setDoc(doc(db, 'families', familyCode, 'meta', 'info'), {
           createdBy: cred.user.uid, createdAt: serverTimestamp(), adminUid: cred.user.uid
         });
@@ -195,7 +189,6 @@ document.getElementById('auth-submit-btn').addEventListener('click', async () =>
         localStorage.setItem('familyCode', familyCode);
 
       } else {
-        // Existing family — send join request
         await setDoc(doc(db, 'families', familyCode, 'join_requests', cred.user.uid), {
           name, email, uid: cred.user.uid, requestedAt: serverTimestamp(), status: 'pending'
         });
@@ -210,7 +203,6 @@ document.getElementById('auth-submit-btn').addEventListener('click', async () =>
       btn.disabled = false;
 
     } else {
-      // Login
       const cred = await signInWithEmailAndPassword(auth, email, password);
       if (!localStorage.getItem('familyCode')) {
         const userDoc = await getDoc(doc(db, 'users', cred.user.uid));
@@ -258,42 +250,57 @@ onAuthStateChanged(auth, async (user) => {
         if (userDoc.data().status === 'pending') localStorage.setItem('memberStatus', 'pending');
       }
     }
+
     const status = localStorage.getItem('memberStatus');
-if (status === 'pending') {
-  const userDoc = await getDoc(doc(db, 'users', user.uid));
-  if (userDoc.exists() && userDoc.data().status === 'active') {
-    localStorage.removeItem('memberStatus');
-    showScreen('pin-screen');
-    setupPinScreen();
+
+    if (status === 'pending') {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists() && userDoc.data().status === 'active') {
+        localStorage.removeItem('memberStatus');
+        const pin = await getStoredPin();
+        if (!pin) {
+          showScreen('pin-setup-screen');
+          setupPinSetupScreen();
+        } else {
+          showScreen('pin-screen');
+          setupPinScreen();
+        }
+      } else {
+        showScreen('pending-screen');
+        document.getElementById('pending-family-code').textContent = getFamilyId();
+        listenForApproval(user);
+      }
+    } else {
+      const pin = await getStoredPin();
+      if (!pin) {
+        showScreen('pin-setup-screen');
+        setupPinSetupScreen();
+      } else {
+        showScreen('pin-screen');
+        setupPinScreen();
+      }
+    }
   } else {
-    showScreen('pending-screen');
-    document.getElementById('pending-family-code').textContent = getFamilyId();
-    listenForApproval(user);
+    showScreen('auth-screen');
   }
-} else {
-  // Check karo PIN set hai ya nahi
-  const userDoc = await getDoc(doc(db, 'users', user.uid));
-  const pinSet = userDoc.exists() && userDoc.data().pin;
-  if (!pinSet) {
-    // Naya user — PIN setup karo
-    showScreen('pin-setup-screen');
-    setupPinSetupScreen();
-  } else {
-    showScreen('pin-screen');
-    setupPinScreen();
-  }
-}
+});
 
 // ============================================
-// LISTEN FOR APPROVAL (pending screen)
+// LISTEN FOR APPROVAL
 // ============================================
 function listenForApproval(user) {
-  const unsub = onSnapshot(doc(db, 'users', user.uid), (snap) => {
+  const unsub = onSnapshot(doc(db, 'users', user.uid), async (snap) => {
     if (snap.exists() && snap.data().status === 'active') {
       localStorage.removeItem('memberStatus');
       unsub();
-      showScreen('pin-screen');
-      setupPinScreen();
+      const pin = await getStoredPin();
+      if (!pin) {
+        showScreen('pin-setup-screen');
+        setupPinSetupScreen();
+      } else {
+        showScreen('pin-screen');
+        setupPinScreen();
+      }
     }
   });
 }
@@ -314,7 +321,7 @@ document.getElementById('cancel-join-request-btn').addEventListener('click', asy
 });
 
 // ============================================
-// PIN SCREEN
+// PIN SCREEN (enter existing PIN)
 // ============================================
 function setupPinScreen() {
   let pinEntry = '';
@@ -360,7 +367,7 @@ function setupPinScreen() {
   };
 }
 
-    // ============================================
+// ============================================
 // PIN SETUP (naye user ke liye)
 // ============================================
 function setupPinSetupScreen() {
@@ -372,6 +379,13 @@ function setupPinSetupScreen() {
   const titleEl = document.getElementById('pin-setup-title');
   const subtitleEl = document.getElementById('pin-setup-subtitle');
   const errorEl = document.getElementById('pin-setup-error');
+
+  // Reset state freshly
+  firstPin = ''; confirmPin = ''; isConfirming = false;
+  dots.forEach(d => { d.value = ''; d.style.borderColor = ''; });
+  if (titleEl) titleEl.textContent = 'Set Your PIN';
+  if (subtitleEl) subtitleEl.textContent = 'Choose a 4-digit PIN to secure Familia.';
+  if (errorEl) errorEl.textContent = '';
 
   function resetDots() {
     dots.forEach(d => { d.value = ''; d.style.borderColor = ''; });
@@ -386,55 +400,42 @@ function setupPinSetupScreen() {
 
   document.querySelectorAll('.pin-setup-btn').forEach(btn => {
     btn.onclick = () => {
-      const current = isConfirming ? confirmPin : firstPin;
-      if (current.length >= 4) return;
-
       if (isConfirming) {
+        if (confirmPin.length >= 4) return;
         confirmPin += btn.textContent.trim();
         updateDots(confirmPin);
-      } else {
-        firstPin += btn.textContent.trim();
-        updateDots(firstPin);
-      }
-
-      const entry = isConfirming ? confirmPin : firstPin;
-
-      if (entry.length === 4) {
-        if (!isConfirming) {
-          // Move to confirm step
-          setTimeout(() => {
-            isConfirming = true;
-            confirmPin = '';
-            resetDots();
-            titleEl.textContent = 'Confirm PIN';
-            subtitleEl.textContent = 'Dobara wahi PIN daalo to confirm karo.';
-            errorEl.textContent = '';
-          }, 200);
-        } else {
-          // Compare
+        if (confirmPin.length === 4) {
           setTimeout(async () => {
             if (firstPin === confirmPin) {
               dots.forEach(d => { d.style.borderColor = '#22c55e'; });
               await savePin(firstPin);
-              setTimeout(() => {
-                showScreen('dashboard-screen');
-                loadDashboard();
-              }, 400);
+              setTimeout(() => { showScreen('dashboard-screen'); loadDashboard(); }, 400);
             } else {
-              errorEl.textContent = 'PINs match nahi kiye. Dobara try karo.';
+              if (errorEl) errorEl.textContent = 'PINs match nahi kiye. Dobara try karo.';
               dots.forEach(d => { d.style.borderColor = '#ef4444'; });
               setTimeout(() => {
-                // Reset to first step
-                firstPin = '';
-                confirmPin = '';
-                isConfirming = false;
+                firstPin = ''; confirmPin = ''; isConfirming = false;
                 resetDots();
-                titleEl.textContent = 'Set Your PIN';
-                subtitleEl.textContent = 'Choose a 4-digit PIN to secure Familia.';
-                errorEl.textContent = '';
+                if (titleEl) titleEl.textContent = 'Set Your PIN';
+                if (subtitleEl) subtitleEl.textContent = 'Choose a 4-digit PIN to secure Familia.';
+                if (errorEl) errorEl.textContent = '';
               }, 900);
             }
           }, 150);
+        }
+      } else {
+        if (firstPin.length >= 4) return;
+        firstPin += btn.textContent.trim();
+        updateDots(firstPin);
+        if (firstPin.length === 4) {
+          setTimeout(() => {
+            isConfirming = true;
+            confirmPin = '';
+            resetDots();
+            if (titleEl) titleEl.textContent = 'Confirm PIN';
+            if (subtitleEl) subtitleEl.textContent = 'Dobara wahi PIN daalo to confirm karo.';
+            if (errorEl) errorEl.textContent = '';
+          }, 200);
         }
       }
     };
@@ -449,10 +450,10 @@ function setupPinSetupScreen() {
       firstPin = firstPin.slice(0, -1);
       updateDots(firstPin);
     }
-    errorEl.textContent = '';
+    if (errorEl) errorEl.textContent = '';
   };
 }
-    
+
 // ============================================
 // LOGOUT
 // ============================================
@@ -845,7 +846,7 @@ function loadFamilyMembers() {
     container.innerHTML = '';
     snap.forEach(docSnap => {
       const member = docSnap.data();
-      if (member.status !== 'active') return; // pending members mat dikhao
+      if (member.status !== 'active') return;
       const initials = member.name.split(' ').map(n => n[0]).join('').toUpperCase();
       container.innerHTML += `<div class="w-12 h-12 rounded-full border-2 border-white ${colors[i % colors.length]} flex items-center justify-center text-white font-bold text-sm shadow-sm" title="${member.name}">${initials}</div>`;
       i++;
